@@ -93,18 +93,21 @@ kill_node() {
 }
 
 # Bug fix: only delete files when h > 0. h=0 was deleting EVERYTHING.
+# Perf: fork-free per-file parsing (was ~460k forks for 230k files = 10-30min).
 cleanup_partial_fileplugin() {
   local h=$1
   if (( h <= 0 )); then
     echo "[$(date -u +%H:%M:%S)] cleanup_partial_fileplugin: refusing h=$h (would delete all)"
     return 0
   fi
-  find "$FILEPLUGIN_OUTPUT/" -mindepth 1 -name 'block-*' -print0 2>/dev/null | \
-    while IFS= read -r -d '' f; do
-      local fh
-      fh=$(basename "$f" | sed -E 's/block-([0-9]+).*/\1/')
-      (( fh > h )) && rm -f "$f"
-    done
+  local f name fh
+  while IFS= read -r -d '' f; do
+    name=${f##*/}        # strip dir; bash builtin (no fork)
+    fh=${name#block-}    # strip "block-" prefix
+    fh=${fh%%-*}         # keep only the height part
+    [[ -z "$fh" || ! "$fh" =~ ^[0-9]+$ ]] && continue
+    (( fh > h )) && rm -f "$f"
+  done < <(find "$FILEPLUGIN_OUTPUT/" -mindepth 1 -name 'block-*' -print0 2>/dev/null)
 }
 
 bootstrap_if_needed() {
