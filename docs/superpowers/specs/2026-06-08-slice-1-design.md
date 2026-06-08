@@ -653,3 +653,7 @@ Slice 1 is "done" when:
 7. `make ci` clean; coverage ≥80% on internal/, 100% on decoders.
 
 When Slice 1 is done, Slice 2 (aggregates) can begin — the orchestration foundation, the data layer, and the multi-version mechanism will all be proven.
+
+---
+
+**Phase A complete**: branch slice-1/phase-a — Tilt stack green (postgres + nats), 244-table schema applied via goose, timescaledb extension live, NATS JetStream healthy, make ci green. Ready for Phase B (Layer 0 orchestration skeleton).
