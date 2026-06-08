@@ -1,0 +1,86 @@
+# golangci-lint config for PocketScribe.
+# Pinned version: see Makefile GOLANGCI_LINT_VERSION.
+
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.26"
+
+linters:
+  default: standard
+  enable:
+    # Core (essentially always-on)
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Quality / correctness
+    - bodyclose
+    - contextcheck
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - nolintlint
+    - prealloc
+    - revive
+    - sqlclosecheck
+    - unparam
+    - wastedassign
+    - copyloopvar
+
+    # PocketScribe-specific care
+    - forbidigo
+
+  settings:
+    revive:
+      rules:
+        - name: var-naming
+        - name: exported
+        - name: package-comments
+        - name: indent-error-flow
+
+    forbidigo:
+      # Patterns banned per CLAUDE.md invariants.
+      forbid:
+        - p: "time\\.Now\\(\\)"
+          msg: "Use block_time from chain header, never indexer wall-clock time (Invariant 1). If genuinely needed for non-data audit metadata, use //nolint:forbidigo with a reason."
+        - p: "clock_timestamp\\(\\)"
+          msg: "Use block_time, never indexer write time (Invariant 1)."
+        - p: "gorm\\."
+          msg: "GORM is banned (CLAUDE.md banned list). Use pgx + sqlc."
+        - p: "volatiletech/sqlboiler"
+          msg: "sqlboiler is banned. Use sqlc."
+
+    gosec:
+      excludes:
+        - G115   # integer overflow conversions — too noisy with chain heights
+
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+  exclusions:
+    rules:
+      - path: "internal/decoders/.*/gen/"
+        linters:
+          - all
+      - path: "internal/store/gen/"
+        linters:
+          - all
+      - path: "internal/proto/gen/"
+        linters:
+          - all
+      - path: "test/"
+        linters:
+          - errcheck
+          - gosec
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -1,0 +1,34 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus-kube-prometheus-prometheus.pocketscribe-dev.svc.cluster.local:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 15s
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki.pocketscribe-dev.svc.cluster.local:3100
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: prometheus
+          matcherRegex: 'block_height="(\d+)"'
+          name: blockHeight
+          url: '/explore?orgId=1&left=["now-1h","now","Prometheus",{"expr":"pocketscribe_consumer_processed_heights{block_height=\"$${__value.raw}\"}"}]'
+
+  - name: PostgreSQL (pocketscribe)
+    type: postgres
+    access: proxy
+    url: postgres-postgresql.pocketscribe-dev.svc.cluster.local:5432
+    database: pocketscribe
+    user: pocketscribe
+    secureJsonData:
+      password: pocketscribe
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1800
+      timescaledb: true

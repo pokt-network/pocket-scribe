@@ -1,0 +1,222 @@
+# Spine entity catalog for /generate-migration-from-diff.
+#
+# Structure:
+# - `entities`: explicit map of FQN → table config. Required for stateful
+#   entities (you have to tell us the id_fields).
+# - `auto_include`: pattern-based inclusion rules. Auto-generated entities use
+#   `pattern: stateless` (PK is composite of block+tx+event indices).
+#
+# Patterns:
+# - `stateful`        : state entity with history. PK = (id_fields..., block_height).
+# - `singleton`       : state entity, no id. PK = (block_height).
+# - `stateless`       : append-only event/msg. PK = (block_time, block_height, tx_index, event_index).
+
+entities:
+  # ─── poktroll first-class state entities ────────────────────────────
+  pocket.shared.Supplier:
+    pattern: stateful
+    table: supplier_history
+    id_fields: [operator_address]
+  pocket.application.Application:
+    pattern: stateful
+    table: application_history
+    id_fields: [address]
+  pocket.application.PendingApplicationTransfer:
+    pattern: stateful
+    table: pending_application_transfer_history
+    id_fields: [destination_address]
+  pocket.application.UndelegatingGatewayList:
+    pattern: singleton
+    table: undelegating_gateway_list_history
+  pocket.gateway.Gateway:
+    pattern: stateful
+    table: gateway_history
+    id_fields: [address]
+  pocket.shared.Service:
+    pattern: stateful
+    table: service_history
+    id_fields: [id]
+  pocket.session.Session:
+    pattern: stateful
+    table: session_history
+    id_fields: [session_id]
+  pocket.proof.Claim:
+    pattern: stateful
+    table: claim_history
+    id_fields: [supplier_operator_address]
+  pocket.proof.Proof:
+    pattern: stateful
+    table: proof_history
+    id_fields: [supplier_operator_address]
+  pocket.proof.SessionSMT:
+    pattern: stateful
+    table: session_smt_history
+    id_fields: [supplier_operator_address]
+  pocket.service.RelayMiningDifficulty:
+    pattern: stateful
+    table: relay_mining_difficulty_history
+    id_fields: [service_id]
+
+  # ─── poktroll migration state (Morse → Shannon, one-time) ──────────
+  pocket.migration.MorseAccount:
+    pattern: stateful
+    table: morse_account_history
+    id_fields: [address]
+  pocket.migration.MorseApplication:
+    pattern: stateful
+    table: morse_application_history
+    id_fields: [address]
+  pocket.migration.MorseValidator:
+    pattern: stateful
+    table: morse_validator_history
+    id_fields: [address]
+  pocket.migration.MorseClaimableAccount:
+    pattern: stateful
+    table: morse_claimable_account_history
+    id_fields: [morse_src_address]
+
+  # ─── cosmos-sdk state entities (explicit) ────────────────────────────
+  cosmos.auth.v1beta1.BaseAccount:
+    pattern: stateful
+    table: cosmos_auth_base_account_history
+    id_fields: [address]
+  cosmos.auth.v1beta1.ModuleAccount:
+    pattern: stateful
+    table: cosmos_auth_module_account_history
+    id_fields: [name]   # ModuleAccount.name is the unique identifier
+  cosmos.bank.v1beta1.Metadata:
+    pattern: stateful
+    table: cosmos_bank_metadata_history
+    id_fields: [base]
+  cosmos.bank.v1beta1.Balance:
+    pattern: stateful
+    table: cosmos_bank_balance_history
+    id_fields: [address, denom]
+  cosmos.staking.v1beta1.Validator:
+    pattern: stateful
+    table: cosmos_staking_validator_history
+    id_fields: [operator_address]
+  cosmos.staking.v1beta1.Delegation:
+    pattern: stateful
+    table: cosmos_staking_delegation_history
+    id_fields: [delegator_address, validator_address]
+  cosmos.staking.v1beta1.UnbondingDelegation:
+    pattern: stateful
+    table: cosmos_staking_unbonding_delegation_history
+    id_fields: [delegator_address, validator_address]
+  cosmos.staking.v1beta1.Redelegation:
+    pattern: stateful
+    table: cosmos_staking_redelegation_history
+    id_fields: [delegator_address, validator_src_address, validator_dst_address]
+  cosmos.staking.v1beta1.Pool:
+    pattern: singleton
+    table: cosmos_staking_pool_history
+  cosmos.staking.v1beta1.HistoricalInfo:
+    pattern: singleton
+    table: cosmos_staking_historical_info_history
+  cosmos.distribution.v1beta1.FeePool:
+    pattern: singleton
+    table: cosmos_distribution_fee_pool_history
+  cosmos.distribution.v1beta1.DelegatorStartingInfo:
+    pattern: stateful
+    table: cosmos_distribution_delegator_starting_info_history
+    id_fields: [delegator_address, validator_address]
+  cosmos.distribution.v1beta1.ValidatorOutstandingRewards:
+    pattern: stateful
+    table: cosmos_distribution_validator_outstanding_rewards_history
+    id_fields: [validator_address]
+  # The following 4 entities have NO validator_address (or period/height) in
+  # their proto — those keys come from the KV store key. Decoder fills the
+  # synthetic id columns from KV context; schema just needs the columns.
+  cosmos.distribution.v1beta1.ValidatorAccumulatedCommission:
+    pattern: stateful
+    table: cosmos_distribution_validator_accumulated_commission_history
+    id_fields: [validator_address]   # synthetic — from KV key
+  cosmos.distribution.v1beta1.ValidatorCurrentRewards:
+    pattern: stateful
+    table: cosmos_distribution_validator_current_rewards_history
+    id_fields: [validator_address]   # synthetic — from KV key
+  cosmos.distribution.v1beta1.ValidatorHistoricalRewards:
+    pattern: stateful
+    table: cosmos_distribution_validator_historical_rewards_history
+    id_fields: [validator_address, period_index]   # both synthetic — from KV key
+  cosmos.distribution.v1beta1.ValidatorSlashEvent:
+    pattern: stateful
+    table: cosmos_distribution_validator_slash_event_history
+    id_fields: [validator_address, slash_height]   # both synthetic — from KV key
+  cosmos.gov.v1.Proposal:
+    pattern: stateful
+    table: cosmos_gov_proposal_history
+    id_fields: [id]
+  cosmos.gov.v1.Vote:
+    pattern: stateful
+    table: cosmos_gov_vote_history
+    id_fields: [proposal_id, voter]
+  cosmos.gov.v1.Deposit:
+    pattern: stateful
+    table: cosmos_gov_deposit_history
+    id_fields: [proposal_id, depositor]
+  cosmos.upgrade.v1beta1.Plan:
+    pattern: singleton
+    table: cosmos_upgrade_plan_history
+  cosmos.slashing.v1beta1.ValidatorSigningInfo:
+    pattern: stateful
+    table: cosmos_slashing_validator_signing_info_history
+    id_fields: [address]
+  cosmos.feegrant.v1beta1.Grant:
+    pattern: stateful
+    table: cosmos_feegrant_grant_history
+    id_fields: [granter, grantee]
+
+  # ─── transactions (envelope) ──────────────────────────────────────────
+  cosmos.tx.v1beta1.Tx:
+    pattern: stateless
+    table: cosmos_tx
+
+# Pattern-based auto-include rules. Matched in order; first match wins.
+# Table template tokens:
+#   {snake}   — snake_case of last segment of FQN (e.g. EventClaimSettled → event_claim_settled)
+#   {module}  — second-level package segment (e.g. cosmos.bank.v1.* → bank)
+#   {ver}     — abbreviated version (v1beta1 → vb1, v1alpha1 → va1); empty for poktroll
+auto_include:
+  # Poktroll events + msgs
+  - regex: '^pocket\.[\w.]+\.Event[A-Z]\w*$'
+    pattern: stateless
+    table_template: "{snake}"
+  - regex: '^pocket\.[\w.]+\.Msg[A-Z]\w*$'
+    pattern: stateless
+    table_template: "{snake}"
+    exclude_suffix: Response
+
+  # Cosmos events + msgs
+  - regex: '^cosmos\.[\w.]+\.Event[A-Z]\w*$'
+    pattern: stateless
+    table_template: "cosmos_{module}_{ver}_{snake}"
+  - regex: '^cosmos\.[\w.]+\.Msg[A-Z]\w*$'
+    pattern: stateless
+    table_template: "cosmos_{module}_{ver}_{snake}"
+    exclude_suffix: Response
+
+  # Module Params (governance-changeable, stored as singleton state — one per module).
+  # Pattern: singleton means PK = (block_height); the row IS the params at that height.
+  - regex: '^pocket\.[\w.]+\.Params$'
+    pattern: singleton
+    table_template: "{module}_params_history"
+  - regex: '^cosmos\.[\w.]+\.Params$'
+    pattern: singleton
+    table_template: "cosmos_{module}_params_history"
+
+  # Genesis state — initial chain state per module (kept for forensic queries).
+  - regex: '^pocket\.[\w.]+\.GenesisState$'
+    pattern: singleton
+    table_template: "{module}_genesis_state"
+  - regex: '^cosmos\.[\w.]+\.GenesisState$'
+    pattern: singleton
+    table_template: "cosmos_{module}_genesis_state"
+
+# Denom suffixes recognized when naming Coin columns.
+coin_denom_aliases:
+  - upokt
+  - pokt
+
+coin_string_recognition: true

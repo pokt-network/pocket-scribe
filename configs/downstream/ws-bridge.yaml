@@ -1,0 +1,61 @@
+# NATS WebSocket bridge configuration for PocketScribe dev / spike.
+#
+# Reads from NATS JetStream, fans out to WebSocket clients with optional
+# subject filtering per connection.
+
+nats:
+  url: nats://nats:4222
+  stream: POKT_CHAIN
+
+# Subjects exposed to clients. Clients can subscribe to any of these
+# (with optional subject-level filters per connection).
+exposed_subjects:
+  - pattern: pokt.block.>            # entire blocks
+  - pattern: pokt.events.>           # all events
+    # Optionally restrict events to certain types
+    # restrict_to:
+    #   - EventClaimSettled
+    #   - EventSupplierStaked
+  - pattern: pokt.kv.supplier.>      # supplier KV updates (high frequency; off-by-default for clients)
+
+# Connection limits (prevent runaway)
+limits:
+  max_connections: 1000
+  max_subscriptions_per_connection: 50
+  message_buffer_per_connection: 1000
+  heartbeat_seconds: 30
+  client_idle_timeout_seconds: 120
+
+# Auth (spike: none; production: JWT or API key)
+auth:
+  mode: none
+  # mode: jwt
+  # jwt_secret_env: WS_BRIDGE_JWT_SECRET
+  # jwt_audience: pocketscribe-ws
+
+# Listen on
+server:
+  host: 0.0.0.0
+  port: 9090
+  path: /stream
+  # TLS (production)
+  # tls_cert: /etc/certs/ws-bridge.crt
+  # tls_key: /etc/certs/ws-bridge.key
+
+# Observability
+metrics:
+  port: 9091
+  path: /metrics
+
+logging:
+  level: info
+  format: json
+
+# Message envelope (sent to clients as JSON)
+envelope:
+  include_subject: true
+  include_block_height: true
+  include_block_time: true
+  include_proto_version: true
+  # If client wants raw protobuf instead of decoded JSON:
+  # raw_protobuf: false

@@ -1,0 +1,100 @@
+# app.toml — sync-from-genesis experiment, mainnet (chain_id "pocket").
+#
+# THIS IS A TEMPLATE. `scripts/10-bootstrap.sh` overlays it on the
+# pocketd-init baseline (merge: right wins, deep).
+#
+# CRITICAL TOML RULE: top-level scalars MUST come before any [section]
+# header — otherwise they get nested inside the most-recent section.
+
+###############################################################################
+###                       Top-level scalars (must come first)               ###
+###############################################################################
+
+# Default pruning removes recent state. For an ARCHIVE node we want "nothing"
+# — keep every height's state queryable. This is what makes the resulting
+# datadir tarball valuable for future reindex / debugging.
+pruning = "nothing"
+
+# Inherit from genesis. Do NOT set arbitrary values here — that would change
+# tx admission behavior at heights where the original validators accepted them.
+minimum-gas-prices = "0upokt"
+
+###############################################################################
+###                       Streaming / FilePlugin                            ###
+###############################################################################
+# Activates our in-process file streamer (PocketScribe archeology patch).
+# Requires the patched binary at `binaries/v0.1.X-archeology/pocketd` —
+# stock poktroll releases do NOT honor this section. See fork/ for the patch.
+
+[streaming]
+
+  [streaming.file]
+    # ALL kvstore keys registered by pocketd's app.go. Use ["*"] for "all".
+    keys = [
+      "acc",
+      "authz",
+      "bank",
+      "circuit",
+      "consensus",
+      "crisis",
+      "distribution",
+      "evidence",
+      "feegrant",
+      "gov",
+      "group",
+      "mint",
+      "params",
+      "slashing",
+      "staking",
+      "upgrade",
+      "application",
+      "supplier",
+      "gateway",
+      "service",
+      "session",
+      "proof",
+      "tokenomics",
+      "shared",
+      "migration",
+    ]
+    # Env-substituted by scripts/10-bootstrap.sh at render time.
+    # One file pair per block: block-{H}-meta + block-{H}-data.
+    write_dir = "${FILEPLUGIN_OUTPUT}"
+    prefix = ""
+    output-metadata = true
+    fsync = true
+    stop-node-on-err = true
+
+###############################################################################
+###                              API / gRPC                                 ###
+###############################################################################
+# Orchestrator polls localhost for /status to detect "target height reached".
+
+[api]
+enable = true
+swagger = false
+address = "tcp://0.0.0.0:1317"
+
+[grpc]
+enable = true
+address = "0.0.0.0:9090"
+
+[grpc-web]
+enable = false
+
+###############################################################################
+###                              Mempool                                    ###
+###############################################################################
+# We are syncing historical blocks, not producing them. Keep mempool small.
+[mempool]
+max-txs = 100
+
+###############################################################################
+###                              Telemetry                                  ###
+###############################################################################
+[telemetry]
+service-name = "poktroll-sync-archeology"
+enabled = false
+enable-hostname = false
+enable-service = false
+prometheus-retention-time = 0

@@ -1,0 +1,19 @@
+diff --git a/app/app.go b/app/app.go
+index 67182a0..ab54abf 100644
+--- a/app/app.go
++++ b/app/app.go
+@@ -264,6 +264,14 @@ func New(
+ 	// Register legacy modules
+ 	app.registerIBCModules()
+ 
++	// Register in-process file streamer first (PocketScribe archeology).
++	// No-op unless `[streaming.file] write_dir = "..."` is set in app.toml.
++	// See app/streaming_file.go for format details. This patch is additive:
++	// the cosmos-sdk plugin-based path below remains untouched.
++	if err := RegisterInProcessFileStreamer(app.BaseApp, appOpts, app.kvStoreKeys()); err != nil {
++		return nil, err
++	}
++
+ 	// register streaming services
+ 	if err := app.RegisterStreamingServices(appOpts, app.kvStoreKeys()); err != nil {
+ 		return nil, err

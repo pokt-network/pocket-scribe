@@ -1,0 +1,252 @@
+-- +goose Up
+-- +goose StatementBegin
+-- ─────────────────────────────────────────────────────────────────────────────
+-- COMMENT ON for all initial tables, views, and columns.
+--
+-- These comments drive auto-generated documentation in:
+--   - Hasura GraphQL (shows them as schema descriptions in GraphiQL)
+--   - PostgREST OpenAPI (shows them in the generated spec / Swagger UI)
+--   - psql `\d <table>` and `\dD <type>`
+--
+-- DISCIPLINE: every new table / column added in subsequent migrations MUST
+-- include COMMENT ON. The reviewer agent flags missing comments.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- ═══ Coordination & metadata tables ═══
+
+COMMENT ON TABLE block IS
+$$Authoritative mapping from block_height to block_time (chain consensus header time).
+Used as the Rosetta stone for converting between height and time axes in queries.
+Every other table joins to this when needed.$$;
+
+COMMENT ON COLUMN block.height IS 'Chain block height. PK.';
+COMMENT ON COLUMN block.time IS
+    'Consensus time from Tendermint header. NEVER indexer write time. Used for time_bucket() and time-range queries.';
+COMMENT ON COLUMN block.hash IS 'Block hash (hex, lowercased).';
+COMMENT ON COLUMN block.proposer_address IS 'Validator address of the block proposer.';
+COMMENT ON COLUMN block.tx_count IS 'Number of transactions in the block.';
+
+COMMENT ON TABLE processed_heights IS
+$$Per-consumer per-height marker. Inserted in the same Postgres transaction as the
+consumer's data writes. Used for gap detection and consumer_consolidation maintenance.$$;
+
+COMMENT ON COLUMN processed_heights.consumer_name IS 'Name of the consumer (supplier, application, etc.).';
+COMMENT ON COLUMN processed_heights.height IS 'Block height processed by this consumer.';
+COMMENT ON COLUMN processed_heights.processed_at IS 'Indexer-side timestamp (audit only, NOT a query axis).';
+
+COMMENT ON TABLE consumer_consolidation IS
+$$Highest contiguous block_height each consumer has processed without gaps.
+Used by sealing loop to decide which aggregate buckets can be sealed.$$;
+
+COMMENT ON COLUMN consumer_consolidation.consumer_name IS 'Consumer identifier; PK.';
+COMMENT ON COLUMN consumer_consolidation.consolidated_up_to IS 'Highest gap-free height. 0 = nothing processed.';
+
+COMMENT ON TABLE aggregate_registry IS
+$$Declarative catalog of continuous aggregates. The sealing loop iterates active
+rows here and seals buckets when consumers_needed have caught up.
+
+`status` lifecycle: shadow (materialized but not exposed) → public (exposed via APIs) → deprecated.$$;
+
+COMMENT ON COLUMN aggregate_registry.name IS 'Aggregate name; matches the MATERIALIZED VIEW name. PK.';
+COMMENT ON COLUMN aggregate_registry.description IS 'Human-readable description; surfaced in Hasura/PostgREST docs.';
+COMMENT ON COLUMN aggregate_registry.source_tables IS 'Tables this aggregate reads from. Used by late-arrival invalidator.';
+COMMENT ON COLUMN aggregate_registry.depends_on IS 'Other aggregates this depends on (for hierarchical aggregates).';
+COMMENT ON COLUMN aggregate_registry.bucket_size IS 'Time bucket interval (e.g., 1 hour, 1 day).';
+COMMENT ON COLUMN aggregate_registry.consumers_needed IS 'Consumers whose consolidated_up_to must >= bucket.height_last before sealing.';
+COMMENT ON COLUMN aggregate_registry.status IS 'shadow = computed, not exposed. public = exposed via APIs. deprecated = scheduled for removal.';
+COMMENT ON COLUMN aggregate_registry.sealed_strategy IS 'eager = seal as soon as possible. lazy = seal on first dirty event. manual = only on explicit refresh.';
+
+COMMENT ON TABLE bucket_seal IS
+$$Marks a continuous aggregate bucket as materialized and gap-free.
+Downstream queries that require trustworthy aggregates JOIN with this table.$$;
+
+COMMENT ON COLUMN bucket_seal.aggregate_name IS 'Aggregate this seal belongs to.';
+COMMENT ON COLUMN bucket_seal.bucket_start_time IS 'Bucket start (block_time, not indexer time).';
+COMMENT ON COLUMN bucket_seal.bucket_end_time IS 'Bucket end (exclusive).';
+COMMENT ON COLUMN bucket_seal.height_range_first IS 'First chain block_height in this bucket (NULL = empty bucket = chain halt).';
+COMMENT ON COLUMN bucket_seal.height_range_last IS 'Last chain block_height in this bucket.';
+COMMENT ON COLUMN bucket_seal.sealed_at IS 'When the sealing loop confirmed this bucket. Updates on re-seal.';
+COMMENT ON COLUMN bucket_seal.sealed_by_consumers IS 'Which consumers were caught up when this bucket sealed.';
+
+COMMENT ON TABLE cagg_dirty_buckets IS
+$$Invalidation queue. When a late arrival lands in a previously-sealed bucket,
+the consumer enqueues an entry here. The sealing loop drains this and re-seals.$$;
+
+COMMENT ON TABLE param_history IS
+$$Module governance parameters (SCD2). Values change rarely via governance proposals.
+THE documented exception to "no valid_to_height" — params benefit from materialized
+ranges for ergonomics. Maintenance job is idempotent.$$;
+
+COMMENT ON COLUMN param_history.module IS 'Cosmos SDK module key (e.g., supplier, tokenomics).';
+COMMENT ON COLUMN param_history.name IS 'Parameter name within the module.';
+COMMENT ON COLUMN param_history.value IS 'Parameter value as JSONB.';
+COMMENT ON COLUMN param_history.effective_from_height IS 'Inclusive: from this height the value is in effect.';
+COMMENT ON COLUMN param_history.effective_to_height IS 'Exclusive: NULL = still in effect.';
+
+COMMENT ON TABLE upgrades IS
+$$Chain upgrade ledger. Populated from poktroll x/upgrade module.
+Used by internal/router to dispatch each block_height to the correct decoder version.$$;
+
+COMMENT ON COLUMN upgrades.name IS 'Upgrade plan name from x/upgrade.';
+COMMENT ON COLUMN upgrades.applied_at_height IS 'Block height where the upgrade took effect.';
+COMMENT ON COLUMN upgrades.decoder_version IS 'Internal decoder version name (e.g., v0_1_5).';
+
+-- ═══ Entity history tables ═══
+
+COMMENT ON TABLE account_history IS
+$$Account history (cosmos-sdk auth module). Append-only. Each row is a snapshot at block_height.
+Use `account` view for current state.$$;
+COMMENT ON COLUMN account_history.address IS 'Bech32 account address.';
+COMMENT ON COLUMN account_history.account_number IS 'Cosmos account number (assigned at first balance change).';
+COMMENT ON COLUMN account_history.sequence IS 'Account nonce; increments on each signed tx.';
+COMMENT ON COLUMN account_history.pubkey_type IS 'Public key type (e.g., secp256k1).';
+COMMENT ON COLUMN account_history.pubkey_value IS 'Public key value (base64).';
+COMMENT ON COLUMN account_history.snapshot_method IS
+    'How this snapshot was obtained: streaming_service (KV write) / rpc_query (reconciler) / reconciler_correction (auto-heal) / genesis.';
+COMMENT ON COLUMN account_history.proto_version IS 'Decoder version that produced this snapshot.';
+
+COMMENT ON TABLE balance_history IS
+$$Per-denom balance history per address. Append-only.
+Use `balance` view for current state.$$;
+COMMENT ON COLUMN balance_history.address IS 'Bech32 account address.';
+COMMENT ON COLUMN balance_history.denom IS 'Cosmos coin denomination (e.g., upokt).';
+COMMENT ON COLUMN balance_history.amount IS 'Balance in the smallest unit (NUMERIC for uint256 precision).';
+
+COMMENT ON TABLE supplier_history IS
+$$Pocket Network supplier history. Append-only. Each row is the full supplier
+state at the given block_height. NEVER UPDATE.
+
+Use `supplier` view for current state. For "supplier X at height Y" queries:
+  SELECT * FROM supplier_history WHERE address = $1 AND block_height <= $2
+  ORDER BY block_height DESC LIMIT 1$$;
+
+COMMENT ON COLUMN supplier_history.address IS 'Bech32 supplier address (pokt1... prefix). Operator identity.';
+COMMENT ON COLUMN supplier_history.owner_address IS 'Address that owns the supplier (may differ from operator).';
+COMMENT ON COLUMN supplier_history.operator_address IS 'Address allowed to act as the supplier (operate the node).';
+COMMENT ON COLUMN supplier_history.stake_upokt IS 'Current stake in uPOKT. NUMERIC(78,0) for full uint256.';
+COMMENT ON COLUMN supplier_history.services IS
+    'JSONB array of SupplierServiceConfig: each entry has service_id, endpoint(s), and rev_share splits.';
+COMMENT ON COLUMN supplier_history.rev_share IS 'JSONB: revenue share splits (recipient → percent).';
+COMMENT ON COLUMN supplier_history.unstake_session_end_height IS
+    'If unstaking initiated: the height at which unstaking completes. NULL = not unstaking.';
+COMMENT ON COLUMN supplier_history.services_activation_heights IS
+    'JSONB: per-service activation heights (when each service became active for this supplier).';
+
+COMMENT ON TABLE application_history IS
+$$Pocket Network application history. Append-only.
+Applications stake to access supplier services via gateways or directly.$$;
+COMMENT ON COLUMN application_history.address IS 'Bech32 application address.';
+COMMENT ON COLUMN application_history.stake_upokt IS 'Current stake in uPOKT.';
+COMMENT ON COLUMN application_history.service_configs IS 'JSONB: which services this app is configured to use.';
+COMMENT ON COLUMN application_history.delegatee_gateway_addresses IS
+    'Array of gateway addresses this application has delegated to.';
+COMMENT ON COLUMN application_history.pending_transfer IS 'JSONB: in-flight application transfer state.';
+COMMENT ON COLUMN application_history.pending_undelegations IS 'JSONB: in-flight gateway undelegations.';
+
+COMMENT ON TABLE gateway_history IS
+$$Pocket Network gateway history. Append-only.
+Gateways stake to facilitate relays between applications and suppliers.$$;
+COMMENT ON COLUMN gateway_history.address IS 'Bech32 gateway address.';
+COMMENT ON COLUMN gateway_history.stake_upokt IS 'Current stake in uPOKT.';
+
+COMMENT ON TABLE service_history IS
+$$Pocket Network service catalog history. Append-only.
+A "service" is a specific RPC API exposed by suppliers (e.g., Ethereum mainnet RPC).$$;
+COMMENT ON COLUMN service_history.service_id IS 'Service identifier (e.g., F00C for Ethereum).';
+COMMENT ON COLUMN service_history.name IS 'Human-readable service name.';
+COMMENT ON COLUMN service_history.compute_units_per_relay IS 'Computational weight per relay request for this service.';
+COMMENT ON COLUMN service_history.owner_address IS 'Address that registered the service.';
+COMMENT ON COLUMN service_history.relay_mining_difficulty IS 'JSONB: current difficulty parameters for relay mining.';
+
+COMMENT ON TABLE session_history IS
+$$Pocket Network session history. A session assigns an application to a set of
+suppliers for relay handling for a fixed duration (~1 hour).$$;
+COMMENT ON COLUMN session_history.session_id IS 'Unique session identifier.';
+COMMENT ON COLUMN session_history.service_id IS 'Service this session is for.';
+COMMENT ON COLUMN session_history.application_address IS 'Application using the session.';
+COMMENT ON COLUMN session_history.supplier_addresses IS 'Array of suppliers serving this session.';
+COMMENT ON COLUMN session_history.session_start_height IS 'Block height session opens.';
+COMMENT ON COLUMN session_history.session_end_height IS 'Block height session closes.';
+COMMENT ON COLUMN session_history.session_number IS 'Sequential session number for the app+service pair.';
+
+COMMENT ON TABLE validator_history IS
+$$Cosmos staking validator history. Append-only.$$;
+COMMENT ON COLUMN validator_history.operator_address IS 'Bech32 operator address.';
+COMMENT ON COLUMN validator_history.consensus_pubkey_type IS 'Consensus pubkey type (e.g., ed25519).';
+COMMENT ON COLUMN validator_history.consensus_pubkey_value IS 'Consensus pubkey value (base64).';
+COMMENT ON COLUMN validator_history.jailed IS 'Whether validator is currently jailed for double-sign / downtime.';
+COMMENT ON COLUMN validator_history.status IS 'BondedStatus enum string: bonded / unbonding / unbonded.';
+COMMENT ON COLUMN validator_history.tokens IS 'Total bonded tokens.';
+COMMENT ON COLUMN validator_history.delegator_shares IS 'Total delegator shares.';
+COMMENT ON COLUMN validator_history.description IS 'JSONB: moniker, identity, website, security_contact, details.';
+COMMENT ON COLUMN validator_history.commission IS 'JSONB: commission rate, max_rate, max_change_rate, update_time.';
+COMMENT ON COLUMN validator_history.min_self_delegation IS 'Minimum self-delegation required for the validator.';
+
+-- ═══ Views ═══
+
+COMMENT ON VIEW account IS 'Current state of each account. Backed by DISTINCT ON over account_history.';
+COMMENT ON VIEW balance IS 'Current per-denom balance per address.';
+COMMENT ON VIEW supplier IS 'Current state of each Pocket Network supplier. The canonical "current" exposure.';
+COMMENT ON VIEW application IS 'Current state of each Pocket Network application.';
+COMMENT ON VIEW gateway IS 'Current state of each Pocket Network gateway.';
+COMMENT ON VIEW service IS 'Current state of each Pocket Network service.';
+COMMENT ON VIEW session IS 'Current state of each open session.';
+COMMENT ON VIEW validator IS 'Current state of each Cosmos staking validator.';
+
+COMMENT ON VIEW safe_height IS
+$$The minimum consolidated_up_to across all consumers. Queries that require
+cross-entity consistency should filter by block_height <= (SELECT height FROM safe_height).$$;
+
+-- ═══ Event hypertables ═══
+
+COMMENT ON TABLE event_claim_settled IS
+$$Emitted when a claim is settled at session end (rewards distributed, burn applied).
+This is the central tokenomics event. See poktroll x/tokenomics module.$$;
+COMMENT ON COLUMN event_claim_settled.session_id IS 'Session this claim was for.';
+COMMENT ON COLUMN event_claim_settled.supplier_address IS 'Supplier that earned the reward.';
+COMMENT ON COLUMN event_claim_settled.application_address IS 'Application that paid for the relays.';
+COMMENT ON COLUMN event_claim_settled.service_id IS 'Service the session was for.';
+COMMENT ON COLUMN event_claim_settled.settled_upokt IS 'Total uPOKT settled to the supplier post-burn.';
+COMMENT ON COLUMN event_claim_settled.mint_ratio IS 'Mint ratio applied (v0.0.12+; NULL for earlier heights).';
+COMMENT ON COLUMN event_claim_settled.num_estimated_relays IS 'Estimated relay count from the claim (v0.1.0+).';
+COMMENT ON COLUMN event_claim_settled.minted_upokt IS 'uPOKT minted by the global mint TLM (v0.1.0+).';
+COMMENT ON COLUMN event_claim_settled.overservicing_loss IS 'uPOKT lost due to overservicing penalty (v0.1.5+).';
+COMMENT ON COLUMN event_claim_settled.deflation_loss IS 'uPOKT lost to deflation TLM (v0.1.5+).';
+COMMENT ON COLUMN event_claim_settled.proto_version IS 'Decoder version that produced this row.';
+
+COMMENT ON TABLE mint_burn_op IS
+$$Mint or burn operation triggered by a Token Logic Module (TLM).
+Each settled claim may trigger multiple TLMs; this table is one row per individual operation.$$;
+COMMENT ON COLUMN mint_burn_op.op_type IS 'mint or burn.';
+COMMENT ON COLUMN mint_burn_op.module IS 'Cosmos module that performed the op.';
+COMMENT ON COLUMN mint_burn_op.tlm_name IS 'Token Logic Module name that triggered this op.';
+COMMENT ON COLUMN mint_burn_op.amount_upokt IS 'Amount in uPOKT.';
+COMMENT ON COLUMN mint_burn_op.related_session_id IS 'If triggered by a session settlement, the session_id.';
+
+COMMENT ON TABLE event_proof_updated IS
+$$Proof lifecycle event: submitted / validated / invalidated.$$;
+COMMENT ON COLUMN event_proof_updated.session_id IS 'Session the proof is for.';
+COMMENT ON COLUMN event_proof_updated.supplier_address IS 'Supplier that submitted the proof.';
+COMMENT ON COLUMN event_proof_updated.proof_status IS 'submitted / validated / invalidated.';
+
+COMMENT ON TABLE event_supplier_slashed IS
+$$Supplier slash event. Slashing happens for invalid proofs or unmet obligations.$$;
+COMMENT ON COLUMN event_supplier_slashed.slashed_upokt IS 'Amount slashed.';
+COMMENT ON COLUMN event_supplier_slashed.reason IS 'Slash reason string (e.g., invalid_proof).';
+
+COMMENT ON TABLE event_relay_mining_difficulty_updated IS
+$$Relay mining difficulty adjustment per service. Difficulty controls the
+expected work-per-relay (similar to Bitcoin difficulty adjustment).$$;
+
+COMMENT ON TABLE event_application_overserviced IS
+$$Application overserviced event: a supplier provided more relays than the
+application's stake covered. Tokenomics penalty applies.$$;
+
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+-- COMMENT ON statements are documentation only; the down is a no-op.
+-- (PostgreSQL doesn't support "uncomment"; the next "ALTER TABLE ... COMMENT" overwrites.)
+SELECT 1;
+-- +goose StatementEnd

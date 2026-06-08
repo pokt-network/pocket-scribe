@@ -1,0 +1,20 @@
+apiVersion: 1
+providers:
+  - name: pocketscribe
+    orgId: 1
+    folder: PocketScribe
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/pocketscribe
+
+# Dashboards JSON to be added under configs/observability/dashboards/:
+#   - ingestion-overview.json       (block lag, NATS publish rate, sidecar metrics)
+#   - consumer-health.json          (per-consumer cursor lag, error rate)
+#   - aggregate-sealing.json        (buckets sealed, dirty queue depth, refresh duration)
+#   - reconciler.json               (drift detected, auto-heal count, run frequency)
+#   - postgres-timescale.json       (write throughput, compression ratio, hypertable chunks)
+#   - nats-jetstream.json           (stream messages, consumer ack pending, dedup hits)
+#   - logs-firehose.json            (Loki panel with all ps-* logs)

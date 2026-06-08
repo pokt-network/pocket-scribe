@@ -1,0 +1,236 @@
+# Chain-authoritative upgrade table for poktroll Shannon MAINNET.
+#
+# Source: Sauron LCD /cosmos/upgrade/v1beta1/applied_plan/{name}
+# Verified 2026-05-22. Refresh via `scripts/sauron-upgrades.sh`.
+#
+# Read by the orchestrator (scripts/run-chapter.sh) to know, for each binary
+# version, what height to sync UP TO before stopping and swapping to the
+# next binary.
+#
+# Format:
+#   network: mainnet | beta
+#   versions:
+#     - tag: vX.Y.Z              # poktroll release tag (must exist in GitHub releases)
+#       applied_height: <int>    # height at which this upgrade was APPLIED on chain
+#                                # (i.e. the first height this binary executed)
+#       runs_until: <int>        # last height this binary should execute
+#                                # (= next version's applied_height - 1)
+#                                # For the latest version, this is "tip" (set dynamically)
+#       notes: <string>
+#       shim_required: bool      # if true, we cannot run the stock binary —
+#                                # need experiments/.../shim/ patched build.
+#       upload_chapter: <int>    # logical "chapter" for batching uploads to S3.
+#                                # Chapters group consecutive versions whose total
+#                                # output is roughly equal-sized.
+
+network: mainnet
+chain_id: pocket
+genesis_sha256: b4adc3614def79b63e777f90cf0a62cf43ea6a17715bdcd16c982ae8e44abee2
+genesis_url: https://raw.githubusercontent.com/pokt-network/pocket-network-genesis/master/shannon/mainnet/genesis.json
+
+# Persistent peer (Sauron PNF seed-two). Non-default P2P port 26663.
+persistent_peers:
+  - e3f1a09e045433199c94172ef0d6fc9ab7212ad7@seed-two.p2p.infra.pocket.network:26663
+
+versions:
+  - tag: v0.1.0
+    applied_height: 1            # genesis binary (no upgrade tx for it)
+    runs_until: 78620            # one before v0.1.2 applied
+    notes: "Genesis binary. Sync from height 1."
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.2
+    applied_height: 78621
+    runs_until: 78631
+    notes: "First mainnet upgrade. v0.1.1 was skipped on mainnet."
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.3
+    applied_height: 78632
+    runs_until: 78640
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.4
+    applied_height: 78641
+    runs_until: 78653
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.5
+    applied_height: 78654
+    runs_until: 78658
+    notes: "Reduce memory footprint when iterating over Suppliers and Applications."
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.6
+    applied_height: 78659
+    runs_until: 78664
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.7
+    applied_height: 78665
+    runs_until: 78670
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.8
+    applied_height: 78671
+    runs_until: 78677
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.9
+    applied_height: 78678
+    runs_until: 78682
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.10
+    applied_height: 78683
+    runs_until: 78688
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.11
+    applied_height: 78689
+    runs_until: 78696
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.12
+    applied_height: 78697
+    runs_until: 80509
+    shim_required: false
+    upload_chapter: 1
+
+  - tag: v0.1.13
+    applied_height: 80510
+    runs_until: 93824
+    shim_required: false
+    upload_chapter: 2
+
+  - tag: v0.1.14
+    applied_height: 93825
+    runs_until: 94369
+    notes: "LAST deterministic-replay version before the discontinuity. STOP HERE to take a clean baseline snapshot before attempting the shim."
+    shim_required: false
+    upload_chapter: 2
+
+  - tag: v0.1.15
+    applied_height: 94370
+    runs_until: 99292
+    notes: "DISCONTINUITY WINDOW. Stock binary cannot replay deterministically — wall-clock-dependent code path in MorseClaimableAccount.GetEstimatedUnbondingEndHeight. Requires shim build (see shim/). Confirmed bad height: 96610."
+    shim_required: true
+    upload_chapter: 3
+
+  - tag: v0.1.16
+    applied_height: 99293
+    runs_until: 102141
+    notes: "Still inside the discontinuity window. Same shim needed."
+    shim_required: true
+    upload_chapter: 3
+
+  - tag: v0.1.17
+    applied_height: 102142
+    runs_until: 116099
+    notes: "Fix landed (poktroll PR #1436): GetEstimatedUnbondingEndHeight uses BlockTime() instead of time.Until. Deterministic from here on."
+    shim_required: false
+    upload_chapter: 4
+
+  - tag: v0.1.18
+    applied_height: 116100
+    runs_until: 117453
+    shim_required: false
+    upload_chapter: 4
+
+  - tag: v0.1.19
+    applied_height: 117454
+    runs_until: 135296
+    shim_required: false
+    upload_chapter: 4
+
+  - tag: v0.1.20
+    applied_height: 135297
+    runs_until: 138930
+    shim_required: false
+    upload_chapter: 5
+
+  - tag: v0.1.21
+    applied_height: 138931
+    runs_until: 155172
+    shim_required: false
+    upload_chapter: 5
+
+  - tag: v0.1.22
+    applied_height: 155173
+    runs_until: 161108
+    shim_required: false
+    upload_chapter: 5
+
+  - tag: v0.1.23
+    applied_height: 161109
+    runs_until: 161168
+    shim_required: false
+    upload_chapter: 6
+
+  - tag: v0.1.24
+    applied_height: 161169
+    runs_until: 190973
+    shim_required: false
+    upload_chapter: 6
+
+  - tag: v0.1.25
+    applied_height: 190974
+    runs_until: 190978
+    shim_required: false
+    upload_chapter: 6
+
+  - tag: v0.1.26
+    applied_height: 190979
+    runs_until: 247892
+    shim_required: false
+    upload_chapter: 7
+
+  - tag: v0.1.27
+    applied_height: 247893
+    runs_until: 287931
+    notes: "Repo's proposed height was 247939 (off by -46 blocks). We use the chain-authoritative 247893."
+    shim_required: false
+    upload_chapter: 7
+
+  - tag: v0.1.28
+    applied_height: 287932
+    runs_until: 382249
+    shim_required: false
+    upload_chapter: 8
+
+  - tag: v0.1.29
+    applied_height: 382250
+    runs_until: 484472
+    shim_required: false
+    upload_chapter: 9
+
+  - tag: v0.1.30
+    applied_height: 484473
+    runs_until: 635505
+    shim_required: false
+    upload_chapter: 10
+
+  - tag: v0.1.31
+    applied_height: 635506
+    runs_until: 703869
+    notes: "v0.1.32 was tagged in repo but NEVER applied on mainnet — skip it entirely."
+    shim_required: false
+    upload_chapter: 11
+
+  - tag: v0.1.33
+    applied_height: 703870
+    runs_until: tip
+    notes: "Latest applied. Run continuously until we reach current tip, then stop with a 'caught up' snapshot. After that, ongoing FilePlugin output goes to a different system, not this experiment."
+    shim_required: false
+    upload_chapter: 12

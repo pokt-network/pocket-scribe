@@ -1,0 +1,7 @@
+# Entities curated into docs/research/spine-shape-evolution.md.
+# One fully-qualified message name per line. Edit when wireamos new modules.
+# Comments and blank lines ignored.
+
+pocket.shared.Supplier
+pocket.tokenomics.EventClaimSettled
+# pocket.supplier.MsgStakeSupplier — deferred to Phase 2 (generic tx table).

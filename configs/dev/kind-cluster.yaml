@@ -1,0 +1,40 @@
+# kind cluster config for PocketScribe local dev.
+# Used by `make cluster-up`.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: pocketscribe-dev
+
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # Postgres
+      - containerPort: 30000
+        hostPort: 5432
+      # NATS
+      - containerPort: 30001
+        hostPort: 4222
+      - containerPort: 30002
+        hostPort: 8222
+      # Hasura
+      - containerPort: 30003
+        hostPort: 8080
+      # PostgREST
+      - containerPort: 30004
+        hostPort: 3000
+      # poktroll RPC
+      - containerPort: 30005
+        hostPort: 26657
+      # poktroll gRPC
+      - containerPort: 30006
+        hostPort: 9090
+      # Tilt UI
+      - containerPort: 30007
+        hostPort: 10350
+
+  # Optional: workers for HA experiments (add more if you want to test 3-node NATS cluster locally).
+  # - role: worker
+  # - role: worker
+
+featureGates:
+  # Enable PodAndContainerStatsFromCRI for accurate metrics.
+  KubeletInUserNamespace: false

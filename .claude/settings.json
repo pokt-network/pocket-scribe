@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🪶 PocketScribe session — run /gsd-progress to see status, /invariant-check to audit recent changes'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '→ running make ci before commit...' && make ci"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "matcherPaths": [
+          "internal/decoders/v*/gen/**",
+          "internal/store/gen/**",
+          "internal/proto/gen/**"
+        ],
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '❌ BLOCKED: this is generated code. Do not edit by hand.' && echo 'Run: make gen-proto OR make gen-sql' && exit 1"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(rm -rf*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '⚠️  rm -rf detected. Are you sure?'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "matcherPaths": ["schema/migrations/*.sql"],
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '📝 Migration file edited. Remember: forward-only, additive changes. ADD COLUMN ... NULL — never DROP.'"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "matcherPaths": ["internal/decoders/v*/**"],
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '📝 Decoder edited. Did you update the cross-version test in test/integration/? Run make test-integration.'"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(make *)",
+      "Bash(go test*)",
+      "Bash(go build*)",
+      "Bash(go run*)",
+      "Bash(go mod*)",
+      "Bash(gofumpt*)",
+      "Bash(golangci-lint*)",
+      "Bash(tilt *)",
+      "Bash(kubectl *)",
+      "Bash(helm *)",
+      "Bash(kind *)",
+      "Bash(k3d *)",
+      "Bash(docker *)",
+      "Bash(nats *)",
+      "Bash(psql *)",
+      "Bash(goose *)",
+      "Bash(buf *)",
+      "Bash(sqlc *)",
+      "Bash(gh pr *)",
+      "Bash(gh issue *)",
+      "Bash(gh repo view*)",
+      "Bash(gh api*)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git show*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)"
+    ]
+  },
+  "model": "claude-opus-4-7"
+}

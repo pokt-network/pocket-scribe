@@ -1,0 +1,540 @@
+-- +goose Up
+-- +goose StatementBegin
+-- ─────────────────────────────────────────────────────────────────────────────
+-- PocketScribe — Initial schema
+-- ─────────────────────────────────────────────────────────────────────────────
+-- This migration establishes the foundation tables that all other migrations
+-- depend on. It must be the first migration applied.
+--
+-- Invariants encoded here:
+--   1. Every entity / event row carries (block_height, block_time).
+--   2. Entity history tables are append-only with PK (id, block_height).
+--   3. No `valid_to_height` columns. Use LEAD() at query time.
+--   4. Idempotent inserts via ON CONFLICT (pk).
+--   5. block_time always comes from chain consensus header.
+--
+-- See: docs/architecture/03-data-model.md
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+-- ═══ CATEGORY A: Coordination & metadata tables ═══════════════════════════════
+
+-- The Rosetta stone between block_height and block_time.
+CREATE TABLE block (
+    height            BIGINT PRIMARY KEY,
+    time              TIMESTAMPTZ NOT NULL,
+    hash              TEXT NOT NULL UNIQUE,
+    proposer_address  TEXT,
+    tx_count          INTEGER NOT NULL DEFAULT 0,
+    indexed_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX block_time_idx ON block (time);
+COMMENT ON TABLE block IS 'Authoritative mapping from block_height to block_time (chain consensus header time).';
+COMMENT ON COLUMN block.time IS 'Consensus time from Tendermint header. Never indexer write time.';
+
+-- Per-consumer per-height cursor. One row per processed height per consumer.
+-- Used for gap detection and consolidation.
+CREATE TABLE processed_heights (
+    consumer_name  TEXT NOT NULL,
+    height         BIGINT NOT NULL,
+    processed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (consumer_name, height)
+);
+CREATE INDEX processed_heights_height_idx ON processed_heights (consumer_name, height DESC);
+COMMENT ON TABLE processed_heights IS 'Per-consumer per-height marker. Insert in same tx as data. Used for gap detection.';
+
+-- Per-consumer monotonic cursor — highest contiguous height with no gaps.
+-- Maintained by a background loop scanning processed_heights.
+CREATE TABLE consumer_consolidation (
+    consumer_name        TEXT PRIMARY KEY,
+    consolidated_up_to   BIGINT NOT NULL DEFAULT 0,
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE consumer_consolidation IS 'Highest height per consumer where all preceding heights are processed. Used by sealing.';
+
+-- Aggregate registry — declarative catalog of all continuous aggregates.
+CREATE TABLE aggregate_registry (
+    name                TEXT PRIMARY KEY,
+    description         TEXT,
+    source_tables       TEXT[] NOT NULL,
+    depends_on          TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    bucket_size         INTERVAL NOT NULL,
+    consumers_needed    TEXT[] NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'shadow'
+                        CHECK (status IN ('shadow', 'public', 'deprecated')),
+    sealed_strategy     TEXT NOT NULL DEFAULT 'lazy'
+                        CHECK (sealed_strategy IN ('eager', 'lazy', 'manual')),
+    backfill_state      JSONB,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE aggregate_registry IS 'Declarative catalog of continuous aggregates. Sealing loop iterates this.';
+
+-- Bucket seal — records that a specific aggregate bucket has been materialized
+-- and is gap-free.
+CREATE TABLE bucket_seal (
+    aggregate_name       TEXT NOT NULL,
+    bucket_start_time    TIMESTAMPTZ NOT NULL,
+    bucket_end_time      TIMESTAMPTZ NOT NULL,
+    height_range_first   BIGINT,                       -- NULL = empty bucket (chain halt)
+    height_range_last    BIGINT,
+    sealed_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    sealed_by_consumers  TEXT[] NOT NULL,
+    PRIMARY KEY (aggregate_name, bucket_start_time),
+    FOREIGN KEY (aggregate_name) REFERENCES aggregate_registry(name) ON DELETE CASCADE
+);
+CREATE INDEX bucket_seal_sealed_at_idx ON bucket_seal (sealed_at DESC);
+COMMENT ON TABLE bucket_seal IS 'Marks a continuous aggregate bucket as materialized and gap-free.';
+
+-- Invalidation queue for late arrivals that touch a sealed bucket.
+CREATE TABLE cagg_dirty_buckets (
+    aggregate_name   TEXT NOT NULL,
+    bucket_start     TIMESTAMPTZ NOT NULL,
+    bucket_end       TIMESTAMPTZ NOT NULL,
+    dirty_since      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    reason           TEXT,
+    PRIMARY KEY (aggregate_name, bucket_start),
+    FOREIGN KEY (aggregate_name) REFERENCES aggregate_registry(name) ON DELETE CASCADE
+);
+COMMENT ON TABLE cagg_dirty_buckets IS 'Invalidation queue. Sealing loop drains this to re-refresh affected buckets.';
+
+-- Module params history (SCD2) — governance-driven parameter changes.
+-- This is the ONE documented exception to "no valid_to_*" rule.
+CREATE TABLE param_history (
+    module                  TEXT NOT NULL,
+    name                    TEXT NOT NULL,
+    value                   JSONB NOT NULL,
+    effective_from_height   BIGINT NOT NULL,
+    effective_from_time     TIMESTAMPTZ NOT NULL,
+    effective_to_height     BIGINT,                    -- NULL = currently effective
+    effective_to_time       TIMESTAMPTZ,
+    triggered_by_tx_hash    TEXT,
+    proto_version           TEXT NOT NULL,
+    indexed_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (module, name, effective_from_height)
+);
+CREATE INDEX param_history_module_name_idx ON param_history (module, name, effective_from_height DESC);
+COMMENT ON TABLE param_history IS 'Module params (SCD2). Documented exception to no-valid_to rule for ergonomics.';
+
+-- Upgrades table — chain upgrade ledger; powers the version router.
+CREATE TABLE upgrades (
+    name                TEXT PRIMARY KEY,
+    applied_at_height   BIGINT NOT NULL UNIQUE,
+    applied_at_time     TIMESTAMPTZ NOT NULL,
+    decoder_version     TEXT NOT NULL,                 -- e.g. 'v0_1_5'
+    notes               TEXT,
+    indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX upgrades_height_idx ON upgrades (applied_at_height);
+COMMENT ON TABLE upgrades IS 'Chain upgrade ledger. internal/router uses this to dispatch to the correct decoder.';
+
+-- ═══ CATEGORY B: Entity history (append-only) ═════════════════════════════════
+-- One table per entity type. PK is (id_column, block_height).
+-- NO valid_to_height. Use LEAD() or DISTINCT ON for "current"/"at height" queries.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Account (cosmos auth)
+CREATE TABLE account_history (
+    address               TEXT NOT NULL,
+    block_height          BIGINT NOT NULL,
+    block_time            TIMESTAMPTZ NOT NULL,
+    account_number        BIGINT NOT NULL,
+    sequence              BIGINT NOT NULL,
+    pubkey_type           TEXT,
+    pubkey_value          TEXT,
+    triggered_by_event    TEXT,
+    triggered_by_tx_hash  TEXT,
+    snapshot_method       TEXT NOT NULL,
+    proto_version         TEXT NOT NULL,
+    indexed_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (address, block_height)
+);
+CREATE INDEX account_history_lookup_idx ON account_history (address, block_height DESC);
+
+-- Bank balance per denom
+CREATE TABLE balance_history (
+    address               TEXT NOT NULL,
+    denom                 TEXT NOT NULL,
+    block_height          BIGINT NOT NULL,
+    block_time            TIMESTAMPTZ NOT NULL,
+    amount                NUMERIC(78, 0) NOT NULL,
+    triggered_by_event    TEXT,
+    triggered_by_tx_hash  TEXT,
+    snapshot_method       TEXT NOT NULL,
+    proto_version         TEXT NOT NULL,
+    indexed_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (address, denom, block_height)
+);
+CREATE INDEX balance_history_lookup_idx ON balance_history (address, denom, block_height DESC);
+
+-- Supplier
+CREATE TABLE supplier_history (
+    address                      TEXT NOT NULL,
+    block_height                 BIGINT NOT NULL,
+    block_time                   TIMESTAMPTZ NOT NULL,
+    owner_address                TEXT NOT NULL,
+    operator_address             TEXT,
+    stake_upokt                  NUMERIC(78, 0) NOT NULL,
+    services                     JSONB NOT NULL,
+    rev_share                    JSONB,
+    unstake_session_end_height   BIGINT,
+    services_activation_heights  JSONB,
+    triggered_by_event           TEXT,
+    triggered_by_tx_hash         TEXT,
+    snapshot_method              TEXT NOT NULL,
+    proto_version                TEXT NOT NULL,
+    indexed_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (address, block_height)
+);
+CREATE INDEX supplier_history_lookup_idx ON supplier_history (address, block_height DESC);
+CREATE INDEX supplier_history_height_idx ON supplier_history (block_height);
+
+-- Application
+CREATE TABLE application_history (
+    address                      TEXT NOT NULL,
+    block_height                 BIGINT NOT NULL,
+    block_time                   TIMESTAMPTZ NOT NULL,
+    stake_upokt                  NUMERIC(78, 0) NOT NULL,
+    service_configs              JSONB NOT NULL,
+    delegatee_gateway_addresses  TEXT[],
+    pending_transfer             JSONB,
+    pending_undelegations        JSONB,
+    unstake_session_end_height   BIGINT,
+    triggered_by_event           TEXT,
+    triggered_by_tx_hash         TEXT,
+    snapshot_method              TEXT NOT NULL,
+    proto_version                TEXT NOT NULL,
+    indexed_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (address, block_height)
+);
+CREATE INDEX application_history_lookup_idx ON application_history (address, block_height DESC);
+CREATE INDEX application_history_height_idx ON application_history (block_height);
+
+-- Gateway
+CREATE TABLE gateway_history (
+    address                      TEXT NOT NULL,
+    block_height                 BIGINT NOT NULL,
+    block_time                   TIMESTAMPTZ NOT NULL,
+    stake_upokt                  NUMERIC(78, 0) NOT NULL,
+    unstake_session_end_height   BIGINT,
+    triggered_by_event           TEXT,
+    triggered_by_tx_hash         TEXT,
+    snapshot_method              TEXT NOT NULL,
+    proto_version                TEXT NOT NULL,
+    indexed_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (address, block_height)
+);
+CREATE INDEX gateway_history_lookup_idx ON gateway_history (address, block_height DESC);
+
+-- Service (catalog)
+CREATE TABLE service_history (
+    service_id                    TEXT NOT NULL,
+    block_height                  BIGINT NOT NULL,
+    block_time                    TIMESTAMPTZ NOT NULL,
+    name                          TEXT,
+    compute_units_per_relay       BIGINT,
+    owner_address                 TEXT,
+    relay_mining_difficulty       JSONB,
+    triggered_by_event            TEXT,
+    triggered_by_tx_hash          TEXT,
+    snapshot_method               TEXT NOT NULL,
+    proto_version                 TEXT NOT NULL,
+    indexed_at                    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (service_id, block_height)
+);
+CREATE INDEX service_history_lookup_idx ON service_history (service_id, block_height DESC);
+
+-- Session (lifecycle: ~1 hour assignments)
+CREATE TABLE session_history (
+    session_id                TEXT NOT NULL,
+    block_height              BIGINT NOT NULL,         -- when this snapshot was emitted
+    block_time                TIMESTAMPTZ NOT NULL,
+    service_id                TEXT NOT NULL,
+    application_address       TEXT NOT NULL,
+    supplier_addresses        TEXT[] NOT NULL,
+    session_start_height      BIGINT NOT NULL,
+    session_end_height        BIGINT NOT NULL,
+    session_number            BIGINT NOT NULL,
+    triggered_by_event        TEXT,
+    triggered_by_tx_hash      TEXT,
+    snapshot_method           TEXT NOT NULL,
+    proto_version             TEXT NOT NULL,
+    indexed_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (session_id, block_height)
+);
+CREATE INDEX session_history_lookup_idx ON session_history (session_id, block_height DESC);
+CREATE INDEX session_history_application_idx ON session_history (application_address, session_start_height);
+
+-- Validator (cosmos staking)
+CREATE TABLE validator_history (
+    operator_address           TEXT NOT NULL,
+    block_height               BIGINT NOT NULL,
+    block_time                 TIMESTAMPTZ NOT NULL,
+    consensus_pubkey_type      TEXT,
+    consensus_pubkey_value     TEXT,
+    jailed                     BOOLEAN NOT NULL,
+    status                     TEXT NOT NULL,
+    tokens                     NUMERIC(78, 0) NOT NULL,
+    delegator_shares           NUMERIC(78, 18) NOT NULL,
+    description                JSONB,
+    commission                 JSONB,
+    min_self_delegation        NUMERIC(78, 0),
+    triggered_by_event         TEXT,
+    triggered_by_tx_hash       TEXT,
+    snapshot_method            TEXT NOT NULL,
+    proto_version              TEXT NOT NULL,
+    indexed_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (operator_address, block_height)
+);
+CREATE INDEX validator_history_lookup_idx ON validator_history (operator_address, block_height DESC);
+
+-- ─── "Current" views (canonical for downstream API exposure) ─────────────────
+
+CREATE OR REPLACE VIEW account AS
+SELECT DISTINCT ON (address) * FROM account_history
+ORDER BY address, block_height DESC;
+
+CREATE OR REPLACE VIEW balance AS
+SELECT DISTINCT ON (address, denom) * FROM balance_history
+ORDER BY address, denom, block_height DESC;
+
+CREATE OR REPLACE VIEW supplier AS
+SELECT DISTINCT ON (address) * FROM supplier_history
+ORDER BY address, block_height DESC;
+
+CREATE OR REPLACE VIEW application AS
+SELECT DISTINCT ON (address) * FROM application_history
+ORDER BY address, block_height DESC;
+
+CREATE OR REPLACE VIEW gateway AS
+SELECT DISTINCT ON (address) * FROM gateway_history
+ORDER BY address, block_height DESC;
+
+CREATE OR REPLACE VIEW service AS
+SELECT DISTINCT ON (service_id) * FROM service_history
+ORDER BY service_id, block_height DESC;
+
+CREATE OR REPLACE VIEW session AS
+SELECT DISTINCT ON (session_id) * FROM session_history
+ORDER BY session_id, block_height DESC;
+
+CREATE OR REPLACE VIEW validator AS
+SELECT DISTINCT ON (operator_address) * FROM validator_history
+ORDER BY operator_address, block_height DESC;
+
+-- ─── Safe-height barrier view (for cross-consumer consistency) ───────────────
+
+CREATE OR REPLACE VIEW safe_height AS
+SELECT MIN(consolidated_up_to) AS height
+FROM consumer_consolidation;
+
+COMMENT ON VIEW safe_height IS 'Min consolidated height across all consumers. Queries needing cross-entity consistency should filter by block_height <= (SELECT height FROM safe_height).';
+
+-- ═══ CATEGORY C: Event hypertables (time-series) ══════════════════════════════
+-- Immutable records of events. Hypertable partitioned by block_time.
+-- Compressed older chunks (>30 days) AFTER backfill stabilizes.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE event_claim_settled (
+    block_height           BIGINT NOT NULL,
+    block_time             TIMESTAMPTZ NOT NULL,
+    tx_index               INTEGER NOT NULL,
+    event_index            INTEGER NOT NULL,
+    session_id             TEXT NOT NULL,
+    supplier_address       TEXT NOT NULL,
+    application_address    TEXT NOT NULL,
+    service_id             TEXT NOT NULL,
+    settled_upokt          NUMERIC(78, 0) NOT NULL,
+    -- Added in later proto versions (nullable for backwards compat)
+    mint_ratio             NUMERIC,                   -- v0.0.12+
+    num_estimated_relays   BIGINT,                    -- v0.1.0+
+    minted_upokt           NUMERIC(78, 0),            -- v0.1.0+
+    overservicing_loss     NUMERIC(78, 0),            -- v0.1.5+
+    deflation_loss         NUMERIC(78, 0),            -- v0.1.5+
+    proto_version          TEXT NOT NULL,
+    indexed_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (block_time, block_height, tx_index, event_index)
+);
+
+SELECT create_hypertable('event_claim_settled', 'block_time', if_not_exists => TRUE);
+
+ALTER TABLE event_claim_settled SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'supplier_address',
+    timescaledb.compress_orderby = 'block_height'
+);
+-- NOTE: do NOT enable compression policy here. Add it AFTER backfill stabilizes:
+--   SELECT add_compression_policy('event_claim_settled', INTERVAL '30 days');
+
+CREATE INDEX event_claim_settled_supplier_idx
+    ON event_claim_settled (supplier_address, block_time DESC);
+CREATE INDEX event_claim_settled_application_idx
+    ON event_claim_settled (application_address, block_time DESC);
+CREATE INDEX event_claim_settled_session_idx
+    ON event_claim_settled (session_id);
+
+-- Mint/burn operations (one row per individual TLM emission)
+CREATE TABLE mint_burn_op (
+    block_height        BIGINT NOT NULL,
+    block_time          TIMESTAMPTZ NOT NULL,
+    tx_index            INTEGER NOT NULL,
+    event_index         INTEGER NOT NULL,
+    op_index            INTEGER NOT NULL,
+    op_type             TEXT NOT NULL,             -- 'mint' | 'burn'
+    module              TEXT NOT NULL,             -- 'tokenomics', 'distribution', etc.
+    tlm_name            TEXT,                       -- which Token Logic Module triggered this
+    amount_upokt        NUMERIC(78, 0) NOT NULL,
+    related_session_id  TEXT,
+    proto_version       TEXT NOT NULL,
+    indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (block_time, block_height, tx_index, event_index, op_index)
+);
+
+SELECT create_hypertable('mint_burn_op', 'block_time', if_not_exists => TRUE);
+
+ALTER TABLE mint_burn_op SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'module',
+    timescaledb.compress_orderby = 'block_height'
+);
+
+CREATE INDEX mint_burn_op_module_idx ON mint_burn_op (module, block_time DESC);
+
+-- Event: proof submitted/updated
+CREATE TABLE event_proof_updated (
+    block_height        BIGINT NOT NULL,
+    block_time          TIMESTAMPTZ NOT NULL,
+    tx_index            INTEGER NOT NULL,
+    event_index         INTEGER NOT NULL,
+    session_id          TEXT NOT NULL,
+    supplier_address    TEXT NOT NULL,
+    proof_status        TEXT NOT NULL,             -- 'submitted', 'validated', 'invalidated'
+    num_relays          BIGINT,
+    num_compute_units   BIGINT,
+    proto_version       TEXT NOT NULL,
+    indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (block_time, block_height, tx_index, event_index)
+);
+
+SELECT create_hypertable('event_proof_updated', 'block_time', if_not_exists => TRUE);
+
+CREATE INDEX event_proof_updated_supplier_idx ON event_proof_updated (supplier_address, block_time DESC);
+CREATE INDEX event_proof_updated_session_idx ON event_proof_updated (session_id);
+
+-- Event: supplier slashed
+CREATE TABLE event_supplier_slashed (
+    block_height        BIGINT NOT NULL,
+    block_time          TIMESTAMPTZ NOT NULL,
+    tx_index            INTEGER NOT NULL,
+    event_index         INTEGER NOT NULL,
+    supplier_address    TEXT NOT NULL,
+    session_id          TEXT,
+    slashed_upokt       NUMERIC(78, 0) NOT NULL,
+    reason              TEXT,
+    proto_version       TEXT NOT NULL,
+    indexed_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (block_time, block_height, tx_index, event_index)
+);
+
+SELECT create_hypertable('event_supplier_slashed', 'block_time', if_not_exists => TRUE);
+
+CREATE INDEX event_supplier_slashed_supplier_idx ON event_supplier_slashed (supplier_address, block_time DESC);
+
+-- Event: relay mining difficulty changes
+CREATE TABLE event_relay_mining_difficulty_updated (
+    block_height          BIGINT NOT NULL,
+    block_time            TIMESTAMPTZ NOT NULL,
+    tx_index              INTEGER NOT NULL,
+    event_index           INTEGER NOT NULL,
+    service_id            TEXT NOT NULL,
+    prev_target_hash      TEXT,
+    new_target_hash       TEXT,
+    prev_num_relays_ema   BIGINT,
+    new_num_relays_ema    BIGINT,
+    proto_version         TEXT NOT NULL,
+    indexed_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (block_time, block_height, tx_index, event_index)
+);
+
+SELECT create_hypertable('event_relay_mining_difficulty_updated', 'block_time', if_not_exists => TRUE);
+
+CREATE INDEX event_rmd_service_idx ON event_relay_mining_difficulty_updated (service_id, block_time DESC);
+
+-- Event: application overserviced (TLM-driven penalty for over-consumption)
+CREATE TABLE event_application_overserviced (
+    block_height            BIGINT NOT NULL,
+    block_time              TIMESTAMPTZ NOT NULL,
+    tx_index                INTEGER NOT NULL,
+    event_index             INTEGER NOT NULL,
+    application_address     TEXT NOT NULL,
+    supplier_address        TEXT,
+    expected_burn_upokt     NUMERIC(78, 0),
+    effective_burn_upokt    NUMERIC(78, 0),
+    proto_version           TEXT NOT NULL,
+    indexed_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (block_time, block_height, tx_index, event_index)
+);
+
+SELECT create_hypertable('event_application_overserviced', 'block_time', if_not_exists => TRUE);
+
+CREATE INDEX event_overserviced_app_idx ON event_application_overserviced (application_address, block_time DESC);
+
+-- ═══ Seed: ensure the consolidation table has rows for the consumers we ship ═
+
+INSERT INTO consumer_consolidation (consumer_name, consolidated_up_to) VALUES
+    ('supplier', 0),
+    ('application', 0),
+    ('gateway', 0),
+    ('service', 0),
+    ('session', 0),
+    ('tokenomics', 0),
+    ('bank', 0),
+    ('authz', 0),
+    ('validator', 0)
+ON CONFLICT DO NOTHING;
+
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+
+-- Down migration: drop in reverse order. Used only for local dev rollback.
+-- In production we never run this; we forward-fix with a new migration.
+
+DROP VIEW IF EXISTS safe_height;
+DROP VIEW IF EXISTS validator;
+DROP VIEW IF EXISTS session;
+DROP VIEW IF EXISTS service;
+DROP VIEW IF EXISTS gateway;
+DROP VIEW IF EXISTS application;
+DROP VIEW IF EXISTS supplier;
+DROP VIEW IF EXISTS balance;
+DROP VIEW IF EXISTS account;
+
+DROP TABLE IF EXISTS event_application_overserviced;
+DROP TABLE IF EXISTS event_relay_mining_difficulty_updated;
+DROP TABLE IF EXISTS event_supplier_slashed;
+DROP TABLE IF EXISTS event_proof_updated;
+DROP TABLE IF EXISTS mint_burn_op;
+DROP TABLE IF EXISTS event_claim_settled;
+
+DROP TABLE IF EXISTS validator_history;
+DROP TABLE IF EXISTS session_history;
+DROP TABLE IF EXISTS service_history;
+DROP TABLE IF EXISTS gateway_history;
+DROP TABLE IF EXISTS application_history;
+DROP TABLE IF EXISTS supplier_history;
+DROP TABLE IF EXISTS balance_history;
+DROP TABLE IF EXISTS account_history;
+
+DROP TABLE IF EXISTS upgrades;
+DROP TABLE IF EXISTS param_history;
+DROP TABLE IF EXISTS cagg_dirty_buckets;
+DROP TABLE IF EXISTS bucket_seal;
+DROP TABLE IF EXISTS aggregate_registry;
+DROP TABLE IF EXISTS consumer_consolidation;
+DROP TABLE IF EXISTS processed_heights;
+DROP TABLE IF EXISTS block;
+
+-- +goose StatementEnd

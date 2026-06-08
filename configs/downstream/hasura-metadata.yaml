@@ -1,0 +1,177 @@
+# Hasura declarative metadata for PocketScribe dev / spike.
+# Production deployments add permissions per role, custom relationships, actions, etc.
+#
+# Applied via: hasura metadata apply --project configs/downstream/
+# Or via the Hasura console (auto-import on startup if pointed here).
+
+version: 3
+sources:
+  - name: default
+    kind: postgres
+    configuration:
+      connection_info:
+        database_url:
+          from_env: HASURA_GRAPHQL_DATABASE_URL
+        pool_settings:
+          max_connections: 50
+          idle_timeout: 180
+        use_prepared_statements: true
+        isolation_level: read-committed
+      # Read replicas (Phase 2+ production):
+      # read_replicas:
+      #   - database_url: { from_env: HASURA_GRAPHQL_READ_REPLICA_URL_1 }
+
+    tables:
+      # ─── Entity history tables ─── (track for raw history queries)
+      - table: { schema: public, name: supplier_history }
+        select_permissions:
+          - role: anon
+            permission:
+              columns: '*'
+              filter: {}
+              limit: 1000
+              allow_aggregations: true
+
+      - table: { schema: public, name: application_history }
+        select_permissions:
+          - role: anon
+            permission:
+              columns: '*'
+              filter: {}
+              limit: 1000
+              allow_aggregations: true
+
+      - table: { schema: public, name: gateway_history }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: service_history }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: session_history }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: validator_history }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: account_history }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: balance_history }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      # ─── Current-state views ─── (the canonical exposure)
+      - table: { schema: public, name: supplier }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+        object_relationships: []
+        array_relationships: []
+
+      - table: { schema: public, name: application }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: gateway }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: service }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: session }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: validator }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: account }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: balance }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      # ─── Event hypertables ─── (analytics)
+      - table: { schema: public, name: event_claim_settled }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: event_proof_updated }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: mint_burn_op }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: event_supplier_slashed }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: event_relay_mining_difficulty_updated }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      - table: { schema: public, name: event_application_overserviced }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }
+
+      # ─── Coordination tables ─── (operational visibility, not normally exposed)
+      - table: { schema: public, name: block }
+        select_permissions:
+          - role: anon
+            permission: { columns: ['height', 'time', 'hash', 'proposer_address', 'tx_count'], filter: {}, limit: 1000 }
+
+      - table: { schema: public, name: aggregate_registry }
+        select_permissions:
+          - role: anon
+            permission:
+              columns: ['name', 'description', 'source_tables', 'depends_on', 'bucket_size', 'status']
+              filter: { status: { _eq: public } }
+              limit: 100
+
+      - table: { schema: public, name: bucket_seal }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1000 }
+
+      - table: { schema: public, name: safe_height }
+        select_permissions:
+          - role: anon
+            permission: { columns: '*', filter: {}, limit: 1 }
+
+    # Continuous aggregates will be added here once the migrations create them.
+    # For each public-status aggregate:
+    #   - table: { schema: public, name: rewards_hourly }
+    #     select_permissions:
+    #       - role: anon
+    #         permission: { columns: '*', filter: {}, limit: 1000, allow_aggregations: true }

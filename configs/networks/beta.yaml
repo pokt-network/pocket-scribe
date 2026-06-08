@@ -1,0 +1,28 @@
+# Pocket Network Shannon — Beta Testnet
+# Used by `ps sync-upgrades` and `ps reconciler` to know which chain to query.
+#
+# Verified 2026-05-22.
+
+network:
+  id: pocket-beta                   # PocketScribe-internal identifier
+  chain_id: pocket-lego-testnet     # on-chain identifier (verified 2026-05-22 via /status .node_info.network)
+  display_name: Shannon Beta Testnet ("lego")
+  genesis_height: 1
+  genesis_time: 2025-04-02T18:47:17.675643Z
+  genesis_decoder_version: v0_1_0   # assumed; verify by querying the chain for the earliest applied_plan
+
+# Optional: partial-history indexing. If unset, indexes from genesis (height 1).
+# If set, PocketScribe bootstraps entity state by querying the chain at this height
+# (via gRPC bulk list) and ignores all blocks before this point.
+#
+# Use case: catch up to current state quickly without re-syncing genesis-to-tip.
+# Tradeoff: queries for state/events before start_height return "out of indexing window".
+#
+# start_height: 200000
+
+endpoints:
+  rpc:
+    - https://sauron-rpc.beta.infra.pocket.network
+  lcd:
+    - https://sauron-api.beta.infra.pocket.network
+  grpc: []

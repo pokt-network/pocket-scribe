@@ -1,0 +1,143 @@
+# ─────────────────────────────────────────────────────────────
+# PocketScribe .gitignore
+# ─────────────────────────────────────────────────────────────
+
+# ───── PERSONAL / PRIVATE (never commit) ─────
+# Put private research, exploratory conversations, drafts, notes here.
+# These directories are SAFE for you to dump anything — they will not
+# leave your machine.
+docs/research/personal/
+docs/session/personal/
+docs/decisions/personal/
+docs/operations/personal/
+**/personal/
+**/.private/
+**/*.private.md
+**/*.local.md
+
+# Personal Claude config (vs .claude/settings.json which IS committed)
+.claude/settings.local.json
+.claude/.local/
+.claude/personal/
+
+# Personal scratch
+SCRATCH.md
+NOTES.md
+TODO.local.md
+.scratch/
+
+# ───── BUILD OUTPUTS ─────
+/bin/
+/dist/
+/build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test artifacts
+*.test
+*.out
+coverage.html
+coverage.txt
+*.coverprofile
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Vendor (we don't vendor — use Go modules)
+vendor/
+
+# ───── EDITORS / IDEs ─────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.bak
+*.orig
+
+# JetBrains
+*.iml
+.idea/
+
+# ───── ENVIRONMENT / SECRETS ─────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*-secret.yaml
+secrets/
+.secrets/
+
+# ───── LOCAL DEV STATE ─────
+# Tilt
+.tilt-cache/
+tilt_modules/
+
+# kind/k3d local cluster state
+.kind/
+.k3d/
+
+# Local Postgres data
+.postgres-data/
+pgdata/
+
+# Local NATS state
+nats-data/
+jetstream/
+
+# Local FilePlugin output for testing
+streaming-data/
+.streaming/
+
+# ───── LOGS / DUMPS ─────
+*.log
+logs/
+*.dump
+*.pcap
+*.heap
+*.mprof
+*.cprof
+crash.log
+
+# ───── DOCKER ─────
+# Don't ignore Dockerfiles, but ignore their build caches
+.dockerignore.local
+.docker-build/
+
+# ───── DOCUMENTATION DRAFTS ─────
+# Drafts that aren't ready for review (use a clearer naming convention if you
+# want them committed eventually)
+*.draft.md
+
+# ───── OS ─────
+Thumbs.db
+.DS_Store
+ehthumbs.db
+Desktop.ini
+
+# ───── MISC ─────
+# Backup files
+*~
+*.bak
+*.tmp
+
+# Python (in case any scripts/ tools end up using it)
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node (in case any tooling needs it, e.g. for OpenAPI doc generation)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Sync-from-genesis experiment artifacts (massive)

@@ -1,0 +1,52 @@
+# config.toml — sync-from-genesis experiment, mainnet.
+#
+# `scripts/10-bootstrap.sh` overlays this on top of the pocketd-init
+# baseline. Values get templated with envsubst — placeholders like
+# ${PERSISTENT_PEERS} are substituted from .env.
+
+[p2p]
+# Sauron PNF seed-two (mainnet). Non-default P2P port 26663.
+# Source: versions.yaml + experiments/.../README.md
+persistent_peers = "${PERSISTENT_PEERS}"
+seeds = "${SEEDS}"
+
+# Permissive peer discovery — we're a single archive consumer, no validator
+# duties. Higher inbound is wasted; outbound 40 is enough to find blocks fast.
+max_num_inbound_peers = 20
+max_num_outbound_peers = 40
+
+# Stable peer expiration policy for long-running sync sessions
+addr_book_strict = false
+allow_duplicate_ip = true
+flush_throttle_timeout = "10ms"
+handshake_timeout = "20s"
+dial_timeout = "10s"
+
+[rpc]
+laddr = "tcp://127.0.0.1:26657"          # bind to localhost only — host polls here
+cors_allowed_origins = ["*"]
+max_open_connections = 200
+
+[tx_index]
+indexer = "kv"
+
+[mempool]
+# Historical sync — no incoming tx admission needed
+size = 100
+max_txs_bytes = 1048576
+
+[consensus]
+# Conservative timeouts. We want determinism + room for slow disk on big blocks.
+timeout_propose = "3s"
+timeout_prevote = "1s"
+timeout_precommit = "1s"
+timeout_commit = "5s"
+double_sign_check_height = 0
+
+[storage]
+# IMPORTANT: discard ABCI responses is FALSE — we want them queryable for
+# golden fixture material and reconciler verification.
+discard_abci_responses = false
+
+[instrumentation]
+prometheus = false

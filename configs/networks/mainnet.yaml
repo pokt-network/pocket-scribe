@@ -1,0 +1,52 @@
+# Pocket Network Shannon — Mainnet
+# Used by `ps sync-upgrades` and `ps reconciler` to know which chain to query.
+#
+# Endpoints are PNF-maintained Sauron infra. Do NOT add `*.poktroll.com`
+# / `shannon-grove-*` endpoints — those belong to the previous team and are
+# not canonical (see docs/research/poktroll-sync-from-genesis.md).
+#
+# Verified 2026-05-22.
+
+network:
+  id: pocket-mainnet                # PocketScribe-internal identifier (logical name; not the on-chain chain_id)
+  chain_id: pocket                  # on-chain identifier (verified 2026-05-22 via /status .node_info.network)
+  display_name: Shannon Mainnet
+  genesis_height: 1
+  genesis_time: 2025-03-28T17:35:52.277346Z
+  genesis_decoder_version: v0_1_0   # the binary that ran at genesis (no upgrade tx for it)
+
+# Recommended start_height for fresh deployments.
+#
+# Background: per ADR-021 (Shannon history discontinuity), poktroll mainnet
+# cannot be re-synced from genesis with any released binary — a wall-clock-
+# dependent code path (fixed in v0.1.17 via poktroll PR #1436) produced
+# non-deterministic results around block 96610. PNF distributes snapshots
+# past the bad window rather than enabling raw genesis sync.
+#
+# For analytics/quick-catch-up deployments: leave `start_height` set to a
+# height past the discontinuity (>= 102142, i.e. v0.1.17 applied). For full
+# archive: bootstrap from a snapshot-seeded archive node and let PocketScribe
+# read its FilePlugin output from there. Do NOT point `ps fileplugin` at a
+# self-syncing-from-genesis node — it will halt.
+#
+# recommended_start_height: 102142   # first block under deterministic binary
+#
+# Optional: partial-history indexing. If unset, indexes from genesis (height 1)
+# subject to the constraints above. If set, PocketScribe bootstraps entity
+# state by querying the chain at this height (via gRPC bulk list) and ignores
+# all blocks before this point.
+#
+# start_height: 700000
+
+endpoints:
+  rpc:
+    - https://sauron-rpc.infra.pocket.network
+  lcd:
+    - https://sauron-api.infra.pocket.network
+  grpc: []                          # Sauron does not publicly expose gRPC; use LCD for state queries
+
+# Legacy endpoints (previous team's infra, NOT maintained by PNF — kept here
+# for documentation only; do not use in production):
+#   - https://shannon-grove-rpc.mainnet.poktroll.com
+#   - https://shannon-grove-api.mainnet.poktroll.com
+#   - shannon-grove-grpc.mainnet.poktroll.com:443

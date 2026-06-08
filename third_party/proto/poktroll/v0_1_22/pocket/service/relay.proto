@@ -1,0 +1,100 @@
+syntax = "proto3";
+package pocket.service;
+
+option go_package = "github.com/pokt-network/poktroll/x/service/types";
+option (gogoproto.stable_marshaler_all) = true;
+
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+import "pocket/session/types.proto";
+
+// Relay message
+//
+// - Contains both the RelayRequest (signed by the Application) and RelayResponse (signed by the Supplier).
+// - The serialized tuple is stored in SMST leaves as values during the Claim/Proof lifecycle.
+message Relay {
+  RelayRequest req = 1;
+  RelayResponse res = 2;
+}
+
+// RelayRequestMetadata
+//
+// Contains metadata for a RelayRequest.
+message RelayRequestMetadata {
+  // Session header associated with the relay.
+  session.SessionHeader session_header = 1;
+
+  // Signature for the request:
+  // - Serialized ring signature, created by either the application itself or a delegated gateway.
+  // - Always uses the application's ring.
+  bytes signature = 2;
+
+  // TODO_MAINNET: Ensure this address is checked/verified onchain if needed.
+  // See: https://github.com/pokt-network/poktroll/pull/567#discussion_r1628722168
+  //
+  // Supplier operator address:
+  // - The Bech32 address of the supplier operator the relay is sent to.
+  // - Used by the RelayMiner to route to the correct supplier.
+  string supplier_operator_address = 3 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// RelayRequest
+//
+// Holds the request details for a relay.
+message RelayRequest {
+  RelayRequestMetadata meta = 1 [(gogoproto.nullable) = false];
+
+  // Serialized request payload:
+  // - Passed directly to the service.
+  // - Can be any supported format: JSON-RPC, REST, gRPC, etc.
+  bytes payload = 2;
+}
+
+// RelayResponse
+//
+// Contains the response details for a RelayRequest.
+message RelayResponse {
+  RelayResponseMetadata meta = 1 [(gogoproto.nullable) = false];
+
+  // Serialized response payload:
+  // - Passed directly from the service.
+  // - Can be any supported format: JSON-RPC, REST, gRPC, etc.
+  bytes payload = 2;
+
+  // Error returned by the RelayMiner, if applicable.
+  // - If no error occurred, this field is empty.
+  RelayMinerError relay_miner_error = 3;
+}
+
+// RelayResponseMetadata
+//
+// Contains metadata for a RelayResponse.
+message RelayResponseMetadata {
+  // Session header associated with the relay.
+  session.SessionHeader session_header = 1;
+
+  // Signature of the supplier's operator on the response.
+  bytes supplier_operator_signature = 2;
+}
+
+// RelayMinerError
+//
+// Contains error details returned by the RelayMiner.
+message RelayMinerError {
+  // Registered codespace for the error (groups errors by source/module, e.g. `relayer_proxy`).
+  // See: https://github.com/pokt-network/poktroll/blob/main/pkg/relayer/proxy/errors.go#L8
+  string codespace = 1;
+
+  // Specific registered error code (e.g. `1` for `ErrRelayerProxyInvalidSession`)
+  // See: https://github.com/pokt-network/poktroll/blob/main/pkg/relayer/proxy/errors.go#L9
+  uint32 code = 2;
+
+  // Human-readable, concise error description.
+  // Example `invalid session in relayer request` for `ErrRelayerProxyInvalidSession`.
+  string description = 3;
+
+  // Detailed error message (may include additional context).
+  // Example: ErrRelayerProxyInvalidSession.Wrapf("application %q has %d service configs", ...)
+  string message = 4;
+}

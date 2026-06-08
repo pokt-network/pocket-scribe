@@ -1,0 +1,38 @@
+# Pocket Network Shannon — Local Devnet (Tilt + kind)
+#
+# Used when developing PocketScribe against a poktroll devnet running locally
+# (via `tilt up` from this repo's Tiltfile).
+#
+# Localnet is ephemeral: every `tilt down && tilt up` resets state. Re-run
+# `ps sync-upgrades` after each reset.
+
+network:
+  id: pocket-localnet               # PocketScribe-internal identifier
+  chain_id: poktroll                # default localnet chain_id (set by `poktrolld init`)
+                                    # — VERIFY: `curl localhost:26657/status | jq -r .result.node_info.network`
+  display_name: Pocket Local Devnet
+  genesis_height: 1
+  genesis_time: dynamic             # populated by `ps sync-upgrades` from the devnet's actual genesis
+  genesis_decoder_version: v0_1_33  # use whatever poktroll binary tag you built locally
+                                    # — typically the latest tag (HEAD of main)
+
+endpoints:
+  rpc:
+    - http://localhost:26657        # Tilt port-forward (see Tiltfile)
+    - http://poktroll.pocketscribe-dev.svc.cluster.local:26657  # in-cluster
+  lcd:
+    - http://localhost:1317         # if you enable the LCD/API on the devnet
+    - http://poktroll.pocketscribe-dev.svc.cluster.local:1317
+  grpc:
+    - localhost:9090
+
+# Localnet typically has 0 applied upgrades. `ps sync-upgrades` will populate
+# only the genesis row. As you tag-and-upgrade locally to test multi-version
+# scenarios, the table grows.
+#
+# For testing upgrade behaviour locally:
+#   1. Build poktroll at tag vA.B.C.
+#   2. Submit a MsgSoftwareUpgrade with plan name "vA.B.C" and a near-future height.
+#   3. Stop the binary at the upgrade height; restart with the new build.
+#   4. `ps sync-upgrades --config configs/networks/localnet.yaml` — picks up the
+#      new applied upgrade.
