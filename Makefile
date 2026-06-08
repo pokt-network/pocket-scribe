@@ -7,6 +7,7 @@
 .PHONY: help \
         verify-migrations regenerate-migrations regenerate-snapshots \
         cluster-up cluster-down \
+        migrate-dev migrate-dev-status migrate-dev-down \
         clean
 
 help: ## Print this help
@@ -43,6 +44,19 @@ cluster-up: ## Create the local kind cluster (idempotent)
 
 cluster-down: ## Delete the local kind cluster
 	@kind delete cluster --name pocketscribe-dev
+
+# ─── Migrations against local dev stack ────────────────────────────────────
+
+DEV_PG_DSN := host=localhost port=5432 user=pocketscribe password=dev_only_password dbname=pocketscribe sslmode=disable
+
+migrate-dev: ## Apply all goose migrations against the Tilt-managed Postgres
+	@goose -dir schema/migrations postgres "$(DEV_PG_DSN)" up
+
+migrate-dev-status: ## Show goose migration status against dev Postgres
+	@goose -dir schema/migrations postgres "$(DEV_PG_DSN)" status
+
+migrate-dev-down: ## Roll back one migration on dev Postgres (use with care)
+	@goose -dir schema/migrations postgres "$(DEV_PG_DSN)" down
 
 # ─── Housekeeping ──────────────────────────────────────────────────────────
 
