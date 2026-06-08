@@ -202,7 +202,7 @@ required_set(H, network) = {
 
 consumer_first_valid_height(c, network):
     let V = c.first_valid_version
-    if V ≤ network.genesis_version:
+    if V ≤ network.genesis_decoder_version:
         return 1
     if V ∈ upgrades(network):
         return upgrades[network][V].height
@@ -213,7 +213,7 @@ is_sealed(H, network) =
         consumer_consolidation[c].consolidated_up_to ≥ H
 ```
 
-`network.genesis_version` comes from `configs/networks/<name>.yaml`. The upgrades table is populated by `ps sync-upgrades` per ADR-018. `consumer_consolidation.consolidated_up_to` is the per-consumer high-water mark of contiguous processing (existing schema).
+`network.genesis_decoder_version` comes from `configs/networks/<name>.yaml`. The upgrades table is populated by `ps sync-upgrades` per ADR-018. `consumer_consolidation.consolidated_up_to` is the per-consumer high-water mark of contiguous processing (existing schema).
 
 **Version comparison is semver, not lexicographic.** "v0.1.10" > "v0.1.9" (lexicographic gets this wrong). All version comparisons in `required_set` resolution go through a semver parser (`golang.org/x/mod/semver` or equivalent). Versions are normalized to canonical form (`vMAJOR.MINOR.PATCH`) at the system boundary; internal code never compares version strings directly.
 
@@ -222,23 +222,24 @@ A materialized `block_seal` table is deliberately deferred to Slice 2 (when aggr
 ### 4.11 Per-network config
 
 ```yaml
-# configs/networks/mainnet.yaml
-chain_id: pocket
-rpc: https://sauron-rpc.infra.pocket.network
-genesis_version: v0.1.0
+# configs/networks/mainnet.yaml (excerpt)
+network:
+  id: pocket-mainnet
+  chain_id: pocket
+  genesis_decoder_version: v0_1_0
+endpoints:
+  rpc: [https://sauron-rpc.infra.pocket.network]
 
-# configs/networks/beta.yaml
-chain_id: pocket-lego-testnet
-rpc: https://sauron-rpc.beta.infra.pocket.network
-genesis_version: v0.1.32
-
-# configs/networks/localnet.yaml
-chain_id: pocket-localnet
-rpc: http://localhost:26657
-genesis_version: v0.1.34
+# configs/networks/localnet.yaml (excerpt)
+network:
+  id: pocket-localnet
+  chain_id: poktroll
+  genesis_decoder_version: v0_1_33
+endpoints:
+  rpc: [http://localhost:26657]
 ```
 
-The `genesis_version` is an invariant of the network (the version the chain started at). It does not change after the network exists. Other fields (RPC, chain_id) describe how to reach the chain.
+The `genesis_decoder_version` is an invariant of the network (the version the chain started at). It does not change after the network exists. Other fields (RPC, chain_id) describe how to reach the chain.
 
 ---
 
