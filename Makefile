@@ -6,6 +6,7 @@
 
 .PHONY: help \
         verify-migrations regenerate-migrations regenerate-snapshots \
+        cluster-up cluster-down \
         clean
 
 help: ## Print this help
@@ -32,6 +33,16 @@ regenerate-migrations: ## Re-generate schema/migrations/00NN_decoder_*.sql from 
 	  bash .claude/skills/generate-migration-from-diff/run.sh $$v >/dev/null; \
 	done
 	@ls schema/migrations/ | grep _decoder_ | wc -l | awk '{print "Migrations: "$$1}'
+
+# ─── Local dev cluster (kind + Tilt) ───────────────────────────────────────
+
+cluster-up: ## Create the local kind cluster (idempotent)
+	@kind get clusters | grep -qx pocketscribe-dev || \
+	  kind create cluster --config configs/dev/kind-cluster.yaml
+	@echo "kind cluster pocketscribe-dev is ready. kubectl context: kind-pocketscribe-dev"
+
+cluster-down: ## Delete the local kind cluster
+	@kind delete cluster --name pocketscribe-dev
 
 # ─── Housekeeping ──────────────────────────────────────────────────────────
 
