@@ -52,12 +52,14 @@ spec:
               mountPath: /etc/nats
             - name: data
               mountPath: /data
+          # Readiness gates on JetStream ready, not just NATS connected.
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /healthz?js-enabled-only=true
               port: 8222
             initialDelaySeconds: 2
             periodSeconds: 3
+          # Liveness stays on plain /healthz so JetStream hiccups don't restart the pod.
           livenessProbe:
             httpGet:
               path: /healthz
