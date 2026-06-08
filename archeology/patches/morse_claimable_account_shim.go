@@ -1,3 +1,6 @@
+//go:build archeology
+// +build archeology
+
 package types
 
 import (

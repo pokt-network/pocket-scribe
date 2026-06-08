@@ -33,8 +33,8 @@ linters:
     - wastedassign
     - copyloopvar
 
-    # PocketScribe-specific care (disabled during Phase A skeleton)
-    # - forbidigo
+    # PocketScribe-specific care
+    - forbidigo
 
   settings:
     revive:
@@ -47,13 +47,13 @@ linters:
     forbidigo:
       # Patterns banned per CLAUDE.md invariants.
       forbid:
-        - p: "^time\\.Now\\(\\)$"
+        - pattern: "time\\.Now\\(\\)"
           msg: "Use block_time from chain header, never indexer wall-clock time (Invariant 1). If genuinely needed for non-data audit metadata, use //nolint:forbidigo with a reason."
-        - p: "^clock_timestamp\\(\\)$"
+        - pattern: "clock_timestamp\\(\\)"
           msg: "Use block_time, never indexer write time (Invariant 1)."
-        - p: "^gorm\\."
+        - pattern: "gorm\\."
           msg: "GORM is banned (CLAUDE.md banned list). Use pgx + sqlc."
-        - p: "^volatiletech/sqlboiler"
+        - pattern: "volatiletech/sqlboiler"
           msg: "sqlboiler is banned. Use sqlc."
 
     gosec:
@@ -76,10 +76,6 @@ linters:
       - path: "internal/proto/gen/"
         linters:
           - all
-      - path: "archeology/"
-        linters:
-          - forbidigo
-          - revive
       - path: "test/"
         linters:
           - errcheck
