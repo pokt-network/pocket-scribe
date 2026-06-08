@@ -6,6 +6,9 @@ version: "2"
 run:
   timeout: 5m
   go: "1.26"
+  exclude-dirs:
+    - archeology
+    - third_party
 
 linters:
   default: standard
