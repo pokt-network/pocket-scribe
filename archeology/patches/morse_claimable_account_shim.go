@@ -1,3 +1,12 @@
+//go:build archeology
+// +build archeology
+
+// This file is a patch source: it declares methods on poktroll's
+// internal MorseClaimableAccount type. It is meant to be applied via
+// 001-app-go-archeology.patch into the poktroll source tree, NOT built
+// standalone. The build tag keeps it out of default builds in the
+// archeology submodule.
+
 package types
 
 import (
