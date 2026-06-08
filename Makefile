@@ -8,6 +8,7 @@
         verify-migrations regenerate-migrations regenerate-snapshots \
         cluster-up cluster-down \
         migrate-dev migrate-dev-status migrate-dev-down \
+        ci vet fmt-check fmt lint test ci-race \
         clean
 
 help: ## Print this help
@@ -57,6 +58,33 @@ migrate-dev-status: ## Show goose migration status against dev Postgres
 
 migrate-dev-down: ## Roll back one migration on dev Postgres (use with care)
 	@goose -dir schema/migrations postgres "$(DEV_PG_DSN)" down
+
+# ─── CI checks (lint, vet, test, fmt) ──────────────────────────────────────
+
+ci: vet fmt-check lint test ## Run all CI checks
+
+vet: ## go vet on the whole module
+	@go vet ./...
+
+fmt-check: ## Verify gofmt is clean
+	@unformatted=$$(gofmt -l . | grep -v '^vendor/' | grep -v '^third_party/'); \
+	if [ -n "$$unformatted" ]; then \
+	  echo "gofmt -w needed for these files:"; \
+	  echo "$$unformatted"; \
+	  exit 1; \
+	fi
+
+fmt: ## Apply gofmt to the whole tree
+	@gofmt -w .
+
+lint: ## Run golangci-lint
+	@golangci-lint run ./...
+
+test: ## Run go test (no race detector — see ci-race for that)
+	@go test ./...
+
+ci-race: ## Run go test with the race detector
+	@go test -race ./...
 
 # ─── Housekeeping ──────────────────────────────────────────────────────────
 
