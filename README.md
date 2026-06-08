@@ -91,29 +91,59 @@ ps version
 
 Full CLI in [`docs/architecture/02-ingestion.md`](./docs/architecture/02-ingestion.md) and [`CLAUDE.md`](./CLAUDE.md).
 
-## Quickstart (Tilt-based local dev)
+## Local development
 
-When code exists:
+### Prerequisites
+
+- **Go 1.26+** (`go version`)
+- **Docker** (with at least 8 GB RAM allocated)
+- **kind** (`kind version`) — installs via `go install sigs.k8s.io/kind@latest`
+- **Tilt** (`tilt version`) — see https://docs.tilt.dev/install.html
+- **kubectl** (`kubectl version --client`)
+- **golangci-lint v2+** (`golangci-lint --version`) — install: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest`
+- **goose** (`goose --version`) — install: `go install github.com/pressly/goose/v3/cmd/goose@latest`
+
+### Bringing up the local stack
 
 ```bash
-# Clone
-git clone https://github.com/pokt-network/pocketscribe
-cd pocketscribe
+make cluster-up   # one-time per session: create the kind cluster
+tilt up           # brings up postgres + nats; applies migrations
+                  # press space in the terminal to open the Tilt UI;
+                  # ctrl-C stops it (resources keep running)
 
-# Install deps (Go, Tilt, kind, kubectl, helm)
-make install-deps
+# When done:
+tilt down         # remove the deployed resources (cluster stays)
+make cluster-down # delete the kind cluster entirely
+```
 
-# Spin local cluster
-make cluster-up                  # creates kind cluster
+`make cluster-up` is idempotent — re-running it is a no-op if the cluster already exists.
 
-# Bring up full local stack via Tilt (poktroll + NATS + Postgres + ps)
-tilt up                          # opens UI at http://localhost:10350
+After `tilt up` shows all resources green:
+- Postgres reachable at `localhost:5432` (user `pocketscribe`, password `dev_only_password`, db `pocketscribe`).
+- NATS reachable at `localhost:4222` (client) and `localhost:8222` (monitor).
+- The `pocketscribe` database has the full 244-table schema applied via goose.
 
-# Tail logs, hot-reload on file save, all in the Tilt UI.
+### CI checks locally
 
-# Tear down
+```bash
+make ci         # vet + fmt-check + lint + test
+make ci-race    # same, with the race detector
+make fmt        # apply gofmt to the tree
+```
+
+### Resetting the dev stack
+
+```bash
 tilt down
+tilt up    # fresh start; migrations re-run automatically
+```
+
+Or for a full reset (incl. the cluster itself):
+
+```bash
 make cluster-down
+make cluster-up
+tilt up
 ```
 
 
