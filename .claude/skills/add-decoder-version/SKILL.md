@@ -49,39 +49,62 @@ If `buf breaking` reports breaks:
 - Document each break in a new ADR: `docs/decisions/ADR-NNN-poktroll-vX.Y.Z-breaks.md`.
 - Decide how to handle each (additive shadow column, dual-write, ADR with operator signoff if semantic shift).
 
-### 4. Add buf config entry
+### 4. Vendor the well-known-type + cosmos-sdk protos (offline codegen)
 
-Edit `buf.yaml`:
+If this version pins a cosmos-sdk not yet vendored, the `generate-decoder`
+skill already vendored `third_party/proto/cosmos-sdk/<csdk>/`. Ensure the
+well-known-type protos exist under `third_party/proto/wkt/` (they are shared
+across all versions and were vendored in Slice 1 Phase C). Then add the new
+version's module path to the root `buf.yaml` workspace:
+
 ```yaml
+version: v2
 modules:
-  ...
   - path: third_party/proto/poktroll/<NEW_VERSION_DIR>
+  - path: third_party/proto/poktroll/v0_1_30
+  - path: third_party/proto/cosmos-sdk/<csdk_dir>
+  - path: third_party/proto/wkt
 ```
 
-### 5. Generate Go types
+### 5. Generate Go types (buf, fully offline)
+
+Copy `buf.gen.poktroll-v0_1_30.yaml` to `buf.gen.poktroll-<NEW_VERSION_DIR>.yaml`,
+then replace every `v0_1_30` occurrence with `<NEW_VERSION_DIR>` (the `out:`
+path and all 9 `go_package` override values). Generate:
 
 ```bash
-buf generate --path third_party/proto/poktroll/$VERSION_DIR \
-    --output internal/decoders/$VERSION_DIR/gen
+make tools-proto    # idempotent: installs pinned buf + protoc-gen-gocosmos
+PATH="$(go env GOPATH)/bin:$PATH" buf generate \
+  --template buf.gen.poktroll-<NEW_VERSION_DIR>.yaml \
+  third_party/proto/poktroll/<NEW_VERSION_DIR>
+go build ./internal/decoders/<NEW_VERSION_DIR>/gen/...   # must compile
 ```
 
-(or use a per-version `buf.gen.<version>.yaml` template.)
+Managed mode rewrites poktroll `go_package` under our module so versions
+coexist; it is DISABLED for cosmos/tendermint/amino/gogoproto/cosmos_proto/google
+so those imports resolve to the real Go modules. Generated `gen/` is committed
+and read-only (ADR-008); never hand-edit — regenerate via `make gen-proto`.
 
-### 6. Scaffold decoder
+### 6. Scaffold the decoder adapter
 
-Create `internal/decoders/v0_1_6/decoder.go` implementing the `decoders.Decoder` interface, similar to existing versions. Map each `Decode<Entity>KV` from the new proto types to the canonical types in `internal/types/`.
+```bash
+test -f internal/decoders/<NEW_VERSION_DIR>/decoder.go || \
+  scripts/scaffold_decoder.sh <NEW_VERSION_DIR> > internal/decoders/<NEW_VERSION_DIR>/decoder.go
+```
 
-If the version adds a new field:
-- Add the field to the canonical type (nullable pointer).
-- This decoder populates the field; older decoders leave it nil.
-- Add a migration: `ALTER TABLE <entity>_history ADD COLUMN <field> <type> NULL`.
+The scaffold implements the current `decoders.Decoder` interface. Hand-fill the
+version-specific methods (entity/tx/event decoders) using the generated `gen/`
+types, mapping to canonical `internal/types`. The block header needs nothing — it
+delegates to the shared, version-invariant `decoders.DecodeBlockHeader`.
 
-### 7. Add unit test
+### 7. Add unit tests
 
-`internal/decoders/v0_1_6/decoder_test.go`:
-- Golden test for each `Decode*KV` method.
-- Use `sebdah/goldie/v2`.
-- Fixtures captured from a testnet/mainnet block at this version (use a debug tool — TODO `scripts/tools/capture-kv.go`).
+- Interface satisfaction: `var _ decoders.Decoder = Decoder{}`.
+- `Version()` returns the tag.
+- Golden tests for each implemented `Decode*` method against real captured
+  fixtures (`sebdah/goldie/v2` once fixtures exist; block-header is covered by
+  the shared `internal/decoders/blockheader_test.go`). Coverage: 100% of
+  hand-written decoder methods (CLAUDE.md mandate).
 
 ### 8. Register in router
 

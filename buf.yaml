@@ -1,24 +1,18 @@
+# buf v2 workspace. Each vendored proto tree is a module root. Per-version
+# managed-mode go_package rewriting + plugin invocation live in the gen
+# templates (buf.gen.poktroll-<v>.yaml). Codegen is fully offline: every import
+# resolves from these three local roots (no buf.build / BSR access).
+#
+# New poktroll versions add their module path here when onboarded
+# (see .claude/skills/add-decoder-version/SKILL.md).
 version: v2
-
 modules:
-  # Our own protos (NATS envelope, internal RPC contracts)
-  - path: internal/proto
-    name: github.com/pokt-network/pocketscribe/internal/proto
-
-  # Vendored poktroll protos, one per supported chain version.
-  # Add a new module when onboarding a new version (see ADR-008 / .claude/agents/pocketscribe-proto-versioner.md).
-  - path: third_party/proto/poktroll/v0_0_10
-  - path: third_party/proto/poktroll/v0_0_12
-  - path: third_party/proto/poktroll/v0_1_0
-  - path: third_party/proto/poktroll/v0_1_5
-
-  # Cosmos SDK protos (needed for shared types like Coin, BlockID, etc.)
-  - path: third_party/proto/cosmos-sdk/v0.53
-
+  - path: third_party/proto/poktroll/v0_1_30
+  - path: third_party/proto/cosmos-sdk/v0_53_0
+  - path: third_party/proto/wkt
 lint:
   use:
     - STANDARD
-
 breaking:
   use:
     - WIRE

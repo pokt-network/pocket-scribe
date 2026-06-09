@@ -345,9 +345,9 @@ Expected: both print OK (exit 0). (This is the spike-proven outcome: 64 files, c
 
 The managed-mode `go_package` override must have rewritten every poktroll import to our module path. If any `gen/` file still imports `github.com/pokt-network/poktroll`, the override is broken and `go mod tidy` would drag the entire poktroll app graph (and the archeology-style deps) into the main module.
 
-Run:
+Run (check ACTUAL imports via `go list`, NOT a text grep — generated `.pb.go` files contain `// See: https://github.com/pokt-network/poktroll/...` comment URLs that a plain `grep` would false-positive on):
 ```bash
-if grep -rl 'github.com/pokt-network/poktroll' internal/decoders/v0_1_30/gen/; then \
+if go list -f '{{range .Imports}}{{println .}}{{end}}' ./internal/decoders/v0_1_30/gen/... | grep -q 'github.com/pokt-network/poktroll'; then \
   echo "CONTAMINATED: gen/ imports poktroll — the go_package override in buf.gen.poktroll-v0_1_30.yaml is wrong; STOP"; exit 1; \
 else echo "OK: gen/ imports our module path, not poktroll"; fi
 go list -m all | grep -i 'github.com/pokt-network/poktroll' && { echo "CONTAMINATED: main module graph contains poktroll; STOP"; exit 1; } || echo "OK: main module graph has no poktroll"
