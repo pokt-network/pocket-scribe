@@ -92,39 +92,30 @@ The canonical types (`internal/types/`) are **the contract** — they're the uni
 
 ## The router
 
+> **ADR-018 supersedes the "hardcoded fallback" implementation note from ADR-008. The router is DB-driven (`NewDBRouter`/`Refresh`) and version-based; there are no hardcoded heights or network branches in routing logic.**
+
+The router lives in `internal/router/` and maps a block height to the correct decoder using the `upgrades` table as the sole source of truth (ADR-018). It is purely version-based: the only per-network input is the upgrade data (`ps sync-upgrades` populates it from the LCD); the resolution logic never branches on network identity.
+
+**Key interfaces:**
+
 ```go
-// internal/router/router.go
-package router
-
-import (
-    "github.com/pokt-network/pocketscribe/internal/decoders"
-)
-
-type Router struct {
-    upgrades []Upgrade            // sorted by Height ascending
-    cache    map[string]decoders.Decoder
-}
-
-type Upgrade struct {
-    Height          int64
-    Name            string
-    DecoderVersion  string         // e.g. "v0_1_5"
-}
-
-func (r *Router) For(height int64) decoders.Decoder {
-    // Binary search or linear-from-end for the latest upgrade with Height <= height
-    for i := len(r.upgrades) - 1; i >= 0; i-- {
-        if height >= r.upgrades[i].Height {
-            return r.cache[r.upgrades[i].DecoderVersion]
-        }
-    }
-    panic("no decoder for height; upgrades table not initialized?")
+// Router is the public surface consumed by block/supplier/... handlers.
+type Router interface {
+    DecoderFor(height int64) (decoders.Decoder, error)
 }
 ```
 
+**`NewStaticRouter`** builds an in-memory snapshot from a slice of `Upgrade{Name, AppliedAtHeight, DecoderVersion}` + a `map[string]decoders.Decoder` registry + the per-network `genesisVersion` string. Used directly in unit tests (no DB required).
+
+**`NewDBRouter`** loads the `upgrades` table once (via `store.ListUpgrades`) and builds a `staticRouter` snapshot. `Refresh` reloads the table — called periodically by `ps reconciler`.
+
+**`DefaultRegistry`** (`internal/router/registry.go`) maps canonical version strings to their stateless `Decoder` implementations. Adding a new decoder version means adding one entry here.
+
+**Lenient fallback:** unregistered intermediate versions (e.g. `v0_1_31` whose decoder ships in a later phase) fall back silently to the nearest earlier registered version. This is correct for the version-invariant block header; later phases (tx/state/event decoders) must use a strict variant that requires every version in the table to be registered.
+
 ## The upgrades table
 
-Source of truth: poktroll's `x/upgrade` module. The indexer maintains its own `upgrades` table for fast lookup; it's reconciled against the chain at startup.
+Source of truth: poktroll's `x/upgrade` module. The indexer maintains its own `upgrades` table for fast lookup; `ps sync-upgrades` populates it from the LCD and `ps reconciler` refreshes it periodically (ADR-018).
 
 ```sql
 -- in schema/migrations/0001_init.sql
@@ -138,20 +129,7 @@ CREATE TABLE upgrades (
 );
 ```
 
-Hardcoded fallback (in case the DB is empty or the chain RPC is down):
-
-```go
-// internal/router/upgrades.go
-var DefaultUpgrades = []Upgrade{
-    {Height: 0,        Name: "genesis",      DecoderVersion: "v0_0_10"},
-    {Height: 50_000,   Name: "alpha-2",      DecoderVersion: "v0_0_12"},
-    {Height: 180_000,  Name: "beta-launch",  DecoderVersion: "v0_1_0"},
-    {Height: 420_000,  Name: "rev-share",    DecoderVersion: "v0_1_5"},
-    // Add new versions here and via the migration that records them.
-}
-```
-
-The reconciler verifies this matches `poktrolld query upgrade list-applied-plans` periodically.
+`store.UpsertUpgrade` writes rows idempotently (`ON CONFLICT (name) DO UPDATE`). `store.ListUpgrades` returns rows ordered by `applied_at_height ASC` for the router snapshot.
 
 ## Onboarding a new version
 
