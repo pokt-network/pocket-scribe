@@ -9,7 +9,7 @@
         verify-migrations regenerate-migrations regenerate-snapshots \
         cluster-up cluster-down \
         migrate-dev migrate-dev-status migrate-dev-down \
-        ci vet fmt-check fmt lint test ci-race \
+        ci vet fmt-check fmt lint test test-integration ci-race \
         clean
 
 help: ## Print this help
@@ -83,6 +83,9 @@ lint: ## Run golangci-lint
 
 test: ## Run go test (no race detector — see ci-race for that)
 	@go test ./...
+
+test-integration: ## Run container-backed integration tests (needs Docker)
+	@go test -tags=integration -count=1 ./test/...
 
 ci-race: ## Run go test with the race detector
 	@go test -race ./...
