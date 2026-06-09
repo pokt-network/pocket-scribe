@@ -17,7 +17,6 @@ k8s_resource(
     'postgres',
     port_forwards=['5432:5432'],
     labels=['data'],
-    readiness_timeout='90s',
 )
 
 # ─── Message bus: NATS JetStream ──────────────────────────────────────────
@@ -26,7 +25,6 @@ k8s_resource(
     'nats',
     port_forwards=['4222:4222', '8222:8222'],
     labels=['data'],
-    readiness_timeout='60s',
 )
 
 # ─── Schema migrations ────────────────────────────────────────────────────
