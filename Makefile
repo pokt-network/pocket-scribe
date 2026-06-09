@@ -10,7 +10,8 @@
         cluster-up cluster-down \
         migrate-dev migrate-dev-status migrate-dev-down \
         ci vet fmt-check fmt lint test test-integration ci-race \
-        clean
+        clean \
+        tools-proto gen-proto gen-check
 
 help: ## Print this help
 	@awk 'BEGIN {FS = ":.*?## "} \
@@ -36,6 +37,32 @@ regenerate-migrations: ## Re-generate schema/migrations/00NN_decoder_*.sql from 
 	  bash .claude/skills/generate-migration-from-diff/run.sh $$v >/dev/null; \
 	done
 	@ls schema/migrations/ | grep _decoder_ | wc -l | awk '{print "Migrations: "$$1}'
+
+# ─── Proto codegen (buf) ───────────────────────────────────────────────────
+
+BUF_VERSION       := v1.70.0
+GOGOPROTO_VERSION := v1.7.0
+PROTO_BIN         := $(shell go env GOPATH)/bin
+
+tools-proto: ## Install pinned buf + protoc-gen-gocosmos into GOPATH/bin
+	@go install github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
+	@go install github.com/cosmos/gogoproto/protoc-gen-gocosmos@$(GOGOPROTO_VERSION)
+	@echo "Installed buf $(BUF_VERSION) + protoc-gen-gocosmos $(GOGOPROTO_VERSION) into $(PROTO_BIN)"
+
+gen-proto: tools-proto ## Generate Go decoder bindings for v0_1_30 from vendored protos (offline)
+	@PATH="$(PROTO_BIN):$$PATH" buf generate \
+	  --template buf.gen.poktroll-v0_1_30.yaml \
+	  third_party/proto/poktroll/v0_1_30
+	@echo "Generated internal/decoders/v0_1_30/gen/"
+
+gen-check: ## Verify committed generated code matches the protos (regenerate + diff)
+	@$(MAKE) gen-proto >/dev/null
+	@if ! git diff --quiet -- internal/decoders/v0_1_30/gen; then \
+	  echo "generated code is stale; run 'make gen-proto' and commit the result:"; \
+	  git --no-pager diff --stat -- internal/decoders/v0_1_30/gen; \
+	  exit 1; \
+	fi
+	@echo "generated code up to date."
 
 # ─── Local dev cluster (kind + Tilt) ───────────────────────────────────────
 

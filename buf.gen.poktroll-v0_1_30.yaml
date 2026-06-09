@@ -1,0 +1,62 @@
+# buf generate template for poktroll v0_1_30 -> internal/decoders/v0_1_30/gen/
+#
+# Uses the locally-installed protoc-gen-gocosmos (gogo). Managed mode REWRITES
+# the go_package of every poktroll file to live under our module so that many
+# poktroll versions can coexist without import-path collisions. Managed mode is
+# DISABLED for the cosmos-sdk + wkt trees so their imports keep their upstream
+# go_package (github.com/cosmos/cosmos-sdk/types, .../gogoproto, etc.), which
+# resolve to the real Go modules we already depend on.
+version: v2
+
+plugins:
+  - local: protoc-gen-gocosmos
+    out: internal/decoders/v0_1_30/gen
+    opt:
+      - plugins=grpc
+      - paths=source_relative
+    # Only emit poktroll-owned files; cosmos/google/tendermint imports come from
+    # their real Go modules.
+    include_imports: false
+    include_wkt: false
+
+managed:
+  enabled: true
+  disable:
+    # Keep upstream go_package for everything that is NOT poktroll. Their
+    # go_package already points at the real Go modules we depend on, so managed
+    # mode must NOT rewrite them (or the poktroll imports would break).
+    - path: cosmos
+    - path: tendermint
+    - path: amino
+    - path: gogoproto
+    - path: cosmos_proto
+    - path: google
+  override:
+    # Each poktroll module's protos -> internal/decoders/v0_1_30/gen/<module>
+    - file_option: go_package
+      path: pocket/application
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/application
+    - file_option: go_package
+      path: pocket/gateway
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/gateway
+    - file_option: go_package
+      path: pocket/migration
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/migration
+    - file_option: go_package
+      path: pocket/proof
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/proof
+    - file_option: go_package
+      path: pocket/service
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/service
+    - file_option: go_package
+      path: pocket/session
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/session
+    - file_option: go_package
+      path: pocket/shared
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/shared
+    - file_option: go_package
+      path: pocket/supplier
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/supplier
+    - file_option: go_package
+      path: pocket/tokenomics
+      value: github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30/gen/pocket/tokenomics
