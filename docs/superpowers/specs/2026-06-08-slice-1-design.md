@@ -657,3 +657,5 @@ When Slice 1 is done, Slice 2 (aggregates) can begin — the orchestration found
 ---
 
 **Phase A complete**: branch slice-1/phase-a — Tilt stack green (postgres + nats), 244-table schema applied via goose, timescaledb extension live, NATS JetStream healthy, make ci green. Ready for Phase B (Layer 0 orchestration skeleton).
+
+**Phase B complete**: branch slice-1/phase-b — consumer_registry migration (0039) applied, generic consumer runtime with ack-after-commit and passive gap detection, self-registration + deregister CLI, AND-seal logic, testcontainers harness, all 13 spec tests (§11.1 tests 1–13) green, make ci green. 2026-06-09.
