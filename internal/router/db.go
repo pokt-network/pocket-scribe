@@ -17,8 +17,11 @@ type DBRouter struct {
 	current        Router
 }
 
-// NewDBRouter loads the upgrades table once and returns a ready router. It errors
-// if any decoder_version in the table is missing from the registry.
+// NewDBRouter loads the upgrades table once and returns a ready router. The
+// router is LENIENT: upgrade rows whose decoder_version is not in the registry do
+// NOT error — DecoderFor falls back to the nearest registered earlier version
+// (correct for the version-invariant block header). It errors only on an empty
+// registry (via NewStaticRouter) or a DB read failure.
 func NewDBRouter(ctx context.Context, st *store.Store, registry map[string]decoders.Decoder, genesisVersion string) (*DBRouter, error) {
 	r := &DBRouter{store: st, registry: registry, genesisVersion: genesisVersion}
 	if err := r.Refresh(ctx); err != nil {
