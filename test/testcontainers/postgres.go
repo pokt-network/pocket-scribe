@@ -34,7 +34,8 @@ type PG struct {
 // migration, and returns a connected pool. extra customizers let the resilience
 // test bind a fixed host port.
 func StartPostgres(ctx context.Context, extra ...testcontainers.ContainerCustomizer) (*PG, error) {
-	opts := []testcontainers.ContainerCustomizer{
+	opts := make([]testcontainers.ContainerCustomizer, 0, 4+len(extra))
+	opts = append(opts,
 		postgres.WithDatabase("pocketscribe"),
 		postgres.WithUsername("pocketscribe"),
 		postgres.WithPassword("dev_only_password"),
@@ -43,7 +44,7 @@ func StartPostgres(ctx context.Context, extra ...testcontainers.ContainerCustomi
 		// connections and goose fails. BasicWaitStrategies waits for the readiness
 		// log (twice, due to the init restart) and the listening port.
 		postgres.BasicWaitStrategies(),
-	}
+	)
 	opts = append(opts, extra...)
 
 	c, err := postgres.Run(ctx, pgImage, opts...)

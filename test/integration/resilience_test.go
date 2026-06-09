@@ -145,13 +145,11 @@ func TestPostgresRestartWaitsThenRecovers(t *testing.T) { // spec test 6
 	}
 
 	// Retry until the pool re-establishes a connection.
-	recovered := false
 	deadline := time.After(30 * time.Second)
 	tick := time.NewTicker(250 * time.Millisecond)
 	defer tick.Stop()
-	for !recovered {
+	for {
 		if _, err := s.ProcessHeight(ctx, "noop-a", 4, func(context.Context, pgx.Tx) error { return nil }); err == nil {
-			recovered = true
 			break
 		}
 		select {
