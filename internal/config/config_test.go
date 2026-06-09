@@ -22,6 +22,22 @@ func TestLoadMainnet(t *testing.T) {
 	if len(cfg.Endpoints.RPC) == 0 {
 		t.Error("expected at least one RPC endpoint")
 	}
+	if len(cfg.Network.UpgradeNames) == 0 {
+		t.Error("expected non-empty upgrade_names for mainnet")
+	}
+	found := false
+	for _, n := range cfg.Network.UpgradeNames {
+		if n == "v0.1.30" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("upgrade_names must contain v0.1.30")
+	}
+	if cfg.Endpoints.LCD[0] != "https://sauron-api.infra.pocket.network" {
+		t.Errorf("Endpoints.LCD[0] = %q, want https://sauron-api.infra.pocket.network", cfg.Endpoints.LCD[0])
+	}
 }
 
 func TestLoadLocalnetDynamicGenesisTime(t *testing.T) {
