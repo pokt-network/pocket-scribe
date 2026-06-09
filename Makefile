@@ -5,6 +5,7 @@
 # schema migrations + archeology artifacts; the targets below reflect that.
 
 .PHONY: help \
+        build \
         verify-migrations regenerate-migrations regenerate-snapshots \
         cluster-up cluster-down \
         migrate-dev migrate-dev-status migrate-dev-down \
@@ -85,6 +86,18 @@ test: ## Run go test (no race detector — see ci-race for that)
 
 ci-race: ## Run go test with the race detector
 	@go test -race ./...
+
+# ─── Build ─────────────────────────────────────────────────────────────────
+
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -X github.com/pokt-network/pocketscribe/internal/version.Version=$(VERSION) \
+           -X github.com/pokt-network/pocketscribe/internal/version.Commit=$(COMMIT) \
+           -X github.com/pokt-network/pocketscribe/internal/version.Date=$(DATE)
+
+build: ## Build the ps binary into bin/ps with version metadata
+	@go build -ldflags "$(LDFLAGS)" -o bin/ps ./cmd/ps
 
 # ─── Housekeeping ──────────────────────────────────────────────────────────
 
