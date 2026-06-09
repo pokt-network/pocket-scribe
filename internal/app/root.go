@@ -1,6 +1,10 @@
 package app
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+
+	"github.com/pokt-network/pocketscribe/internal/app/migrate"
+)
 
 // NewRootCmd builds the `ps` command tree. cmd/ps/main.go executes it.
 func NewRootCmd() *cobra.Command {
@@ -11,5 +15,6 @@ func NewRootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.AddCommand(newVersionCmd())
+	root.AddCommand(migrate.NewCmd())
 	return root
 }
