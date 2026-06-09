@@ -6,6 +6,9 @@
 
 .PHONY: help \
         verify-migrations regenerate-migrations regenerate-snapshots \
+        cluster-up cluster-down \
+        migrate-dev migrate-dev-status migrate-dev-down \
+        ci vet fmt-check fmt lint test ci-race \
         clean
 
 help: ## Print this help
@@ -32,6 +35,56 @@ regenerate-migrations: ## Re-generate schema/migrations/00NN_decoder_*.sql from 
 	  bash .claude/skills/generate-migration-from-diff/run.sh $$v >/dev/null; \
 	done
 	@ls schema/migrations/ | grep _decoder_ | wc -l | awk '{print "Migrations: "$$1}'
+
+# ─── Local dev cluster (kind + Tilt) ───────────────────────────────────────
+
+cluster-up: ## Create the local kind cluster (idempotent)
+	@kind get clusters | grep -qx pocketscribe-dev || \
+	  kind create cluster --config configs/dev/kind-cluster.yaml
+	@echo "kind cluster pocketscribe-dev is ready. kubectl context: kind-pocketscribe-dev"
+
+cluster-down: ## Delete the local kind cluster
+	@kind delete cluster --name pocketscribe-dev
+
+# ─── Migrations against local dev stack ────────────────────────────────────
+
+DEV_PG_DSN := host=localhost port=5432 user=pocketscribe password=dev_only_password dbname=pocketscribe sslmode=disable
+
+migrate-dev: ## Apply all goose migrations against the Tilt-managed Postgres
+	@goose -dir schema/migrations postgres "$(DEV_PG_DSN)" up
+
+migrate-dev-status: ## Show goose migration status against dev Postgres
+	@goose -dir schema/migrations postgres "$(DEV_PG_DSN)" status
+
+migrate-dev-down: ## Roll back one migration on dev Postgres (use with care)
+	@goose -dir schema/migrations postgres "$(DEV_PG_DSN)" down
+
+# ─── CI checks (lint, vet, test, fmt) ──────────────────────────────────────
+
+ci: vet fmt-check lint test ## Run all CI checks
+
+vet: ## go vet on the whole module
+	@go vet ./...
+
+fmt-check: ## Verify gofmt is clean
+	@unformatted=$$(gofmt -l . | grep -v '^vendor/' | grep -v '^third_party/'); \
+	if [ -n "$$unformatted" ]; then \
+	  echo "gofmt -w needed for these files:"; \
+	  echo "$$unformatted"; \
+	  exit 1; \
+	fi
+
+fmt: ## Apply gofmt to the whole tree
+	@gofmt -w .
+
+lint: ## Run golangci-lint
+	@golangci-lint run ./...
+
+test: ## Run go test (no race detector — see ci-race for that)
+	@go test ./...
+
+ci-race: ## Run go test with the race detector
+	@go test -race ./...
 
 # ─── Housekeeping ──────────────────────────────────────────────────────────
 

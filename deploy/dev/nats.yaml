@@ -1,0 +1,94 @@
+# NATS JetStream — single-node for local dev.
+# Reachable on localhost:4222 (client) and localhost:8222 (monitor).
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  labels:
+    app: nats
+data:
+  nats.conf: |
+    port: 4222
+    http_port: 8222
+    server_name: pocketscribe-dev
+    jetstream {
+      store_dir: /data
+      max_memory_store: 256MB
+      max_file_store: 2GB
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  labels:
+    app: nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+        - name: nats
+          image: nats:2.10-alpine
+          args:
+            - -c
+            - /etc/nats/nats.conf
+          ports:
+            - containerPort: 4222
+              name: client
+            - containerPort: 8222
+              name: monitor
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nats
+            - name: data
+              mountPath: /data
+          # Readiness gates on JetStream ready, not just NATS connected.
+          readinessProbe:
+            httpGet:
+              path: /healthz?js-enabled-only=true
+              port: 8222
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          # Liveness stays on plain /healthz so JetStream hiccups don't restart the pod.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8222
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: nats-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  labels:
+    app: nats
+spec:
+  type: NodePort
+  selector:
+    app: nats
+  ports:
+    - port: 4222
+      targetPort: 4222
+      nodePort: 30001
+      name: client
+    - port: 8222
+      targetPort: 8222
+      nodePort: 30002
+      name: monitor
