@@ -5,6 +5,8 @@ import (
 
 	"github.com/pokt-network/pocketscribe/internal/app/deregister"
 	"github.com/pokt-network/pocketscribe/internal/app/migrate"
+	"github.com/pokt-network/pocketscribe/internal/app/reconciler"
+	appsync "github.com/pokt-network/pocketscribe/internal/app/sync"
 )
 
 // NewRootCmd builds the `ps` command tree. cmd/ps/main.go executes it.
@@ -18,5 +20,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(migrate.NewCmd())
 	root.AddCommand(deregister.NewCmd())
+	root.AddCommand(appsync.NewCmd())
+	root.AddCommand(reconciler.NewCmd())
 	return root
 }
