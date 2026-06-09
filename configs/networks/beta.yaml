@@ -10,6 +10,7 @@ network:
   genesis_height: 1
   genesis_time: 2025-04-02T18:47:17.675643Z
   genesis_decoder_version: v0_1_0   # assumed; verify by querying the chain for the earliest applied_plan
+  upgrade_names: []                 # no upgrades to query on beta in Phase D
 
 # Optional: partial-history indexing. If unset, indexes from genesis (height 1).
 # If set, PocketScribe bootstraps entity state by querying the chain at this height

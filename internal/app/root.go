@@ -3,8 +3,12 @@ package app
 import (
 	"github.com/spf13/cobra"
 
+	appconsumer "github.com/pokt-network/pocketscribe/internal/app/consumer"
 	"github.com/pokt-network/pocketscribe/internal/app/deregister"
+	appfileplugin "github.com/pokt-network/pocketscribe/internal/app/fileplugin"
 	"github.com/pokt-network/pocketscribe/internal/app/migrate"
+	"github.com/pokt-network/pocketscribe/internal/app/reconciler"
+	appsync "github.com/pokt-network/pocketscribe/internal/app/sync"
 )
 
 // NewRootCmd builds the `ps` command tree. cmd/ps/main.go executes it.
@@ -18,5 +22,9 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(migrate.NewCmd())
 	root.AddCommand(deregister.NewCmd())
+	root.AddCommand(appsync.NewCmd())
+	root.AddCommand(reconciler.NewCmd())
+	root.AddCommand(appconsumer.NewCmd())
+	root.AddCommand(appfileplugin.NewCmd())
 	return root
 }

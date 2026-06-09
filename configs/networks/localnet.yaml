@@ -15,6 +15,7 @@ network:
   genesis_time: dynamic             # populated by `ps sync-upgrades` from the devnet's actual genesis
   genesis_decoder_version: v0_1_33  # use whatever poktroll binary tag you built locally
                                     # — typically the latest tag (HEAD of main)
+  upgrade_names: []                 # no upgrades to query on localnet in Phase D
 
 endpoints:
   rpc:
