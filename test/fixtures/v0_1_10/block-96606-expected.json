@@ -1,0 +1,109 @@
+{
+  "height": 96606,
+  "time": "2025-06-03T21:43:40.909839574Z",
+  "hash": "5b7172d036de790efde497d816eaea8bf6b68f8c19f1c6a334d5e99a78f64b03",
+  "proposer_address": "f9854e3cb13e69501b5c596c1fb7a44db231b38e",
+  "tx_count": 2,
+  "supplier": {
+    "events_staked": [
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      },
+      {
+        "tx_index": 0,
+        "session_end_height": 96660
+      }
+    ],
+    "history_operators": [
+      "pokt18jclyulwru7xvm83ets9jvxc2ceswl6989v5me",
+      "pokt19x8ur4xx0fjwk4uugnegfegv8xd6n3qmk9hd3y",
+      "pokt1du2ua9rxjtq068ctkek2j7dyzf2rhzdsjyuyt9",
+      "pokt1ehvh3qsn3qzfrh3cxwg7daq52asshegmqsng0t",
+      "pokt1exda7xz8syt3t2rzgd7dqll4mjprxuped2c488",
+      "pokt1fm9mrgy32g6up9nd8fw524kmsw4ecwu6jm8f8y",
+      "pokt1gx97ndsyleeu26r9j9uu07g5w2l9vekkvhkcvd",
+      "pokt1h3cpfwrqhs5k84fu3n8yjrvrk4xf3nu42dcjjv",
+      "pokt1k34kegf9yc4zj06xjkwtatcsksvcjyy03uaefd",
+      "pokt1knpu94vvpgqguml5rj7g2dp92rvxy8yt96tgkn",
+      "pokt1lesy0q3a6mzs0mll4gf0z8l0sdyl58vyevre4q",
+      "pokt1qp57hn4kcgcrzsmyv44stn3usg3u4lyyzleat3",
+      "pokt1rzdd8j7yaluh34qtdwylw5u0jwf5rr24aaskjh",
+      "pokt1s6mrt2a0ukz6sxum2stan4mwhtwtf4fulse78r",
+      "pokt1th9vnhsvzvdh0dx0nftt3augx49nn8szu397yn",
+      "pokt1tt85thvmqpgrk2mug9mef99g43renuwzhlwlgx",
+      "pokt1vlslfq8lxpmr640z46ta24k97jmellrf5paft7",
+      "pokt1xzrkgd9f5tj93xdlzdq278dstxm7uz3arkp8q6",
+      "pokt1ze0hsrsqmn5vzsft27hnn5vpw6fs9k966ud35g"
+    ],
+    "scu_rows_min": 494
+  }
+}

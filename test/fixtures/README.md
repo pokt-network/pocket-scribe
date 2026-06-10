@@ -61,9 +61,9 @@ Per version, ~3 fixtures are selected:
 | v0.1.10 | 78683 | 78688 | `v0_1_10` | 78683 (boundary/quiet) | negative-only |
 | v0.1.11 | 78689 | 78696 | `v0_1_10` | 78689 (boundary/quiet), 78690 (quiet), 78693 (tx-bearing — negative) | negative-only |
 | v0.1.12 | 78697 | 80509 | `v0_1_10` | 78697 (boundary/quiet), 78698 (quiet), 80503 (tx-bearing — negative) | negative-only |
-| v0.1.13 | 80510 | 93824 | `v0_1_10` | — | pending curation (batch 13c) |
-| v0.1.14 | 93825 | 94369 | `v0_1_10` | — | pending curation (batch 13c) |
-| v0.1.15 | 94370 | 99292 | `v0_1_10` | — | pending curation (batch 13c) |
+| v0.1.13 | 80510 | 93824 | `v0_1_10` | 80510 (boundary/quiet), 83487 (tx-bearing — negative), 93824 (quiet) | negative-only |
+| v0.1.14 | 93825 | 94369 | `v0_1_10` | 93825 (boundary/quiet), 93881 (tx-bearing — negative), 94369 (quiet) | negative-only |
+| v0.1.15 | 94370 | 99292 | `v0_1_10` | 94370 (boundary/quiet), 96606 (migration-era EventSupplierUnbondingEnd×19 + KV×19 + scu=494), 99292 (quiet) | covered |
 | v0.1.16 | 99293 | 102141 | `v0_1_10` | — | pending curation (batch 13d) |
 | v0.1.17 | 102142 | 116099 | `v0_1_10` | 102542 (tx-bearing, supplier KV — covered via Phase D) | covered |
 | v0.1.18 | 116100 | 117453 | `v0_1_10` | — | pending curation (batch 13d) |
