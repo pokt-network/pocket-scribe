@@ -117,7 +117,15 @@ func (r *BatchRuntime) consume(ctx context.Context) error {
 			_ = msg.NakWithDelay(reprocessDelay)
 			continue
 		}
-		_ = msg.Ack() // ack-after-commit: for the envelope this is the primary ack (after handle commits); for buffered fan-out msgs this is an early ack absorbed by AckWait dedup — the post-commit ack happens inside handle via b.acks
+		// Ack-after-commit (Invariant 5): only the envelope triggers a Postgres
+		// commit, so only envelope messages are acked here.  Fan-out messages are
+		// stored in b.acks and acked inside handle() AFTER ProcessHeight commits
+		// (lines 175-176).  Acking fan-out messages here — before commit — would
+		// violate Invariant 5: a crash after the early ack but before the envelope
+		// arrives would permanently lose those rows (no redelivery, no DB row).
+		if strings.HasPrefix(msg.Subject(), "pokt.block.") {
+			_ = msg.Ack()
+		}
 	}
 }
 
