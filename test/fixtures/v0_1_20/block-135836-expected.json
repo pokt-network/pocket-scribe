@@ -1,0 +1,60 @@
+{
+  "height": 135836,
+  "time": "2025-06-17T20:51:56.575714549Z",
+  "hash": "c2139758a49bc9c5c1d296c983f36651d26fed284ba4db2521f6743f7c9a5da9",
+  "proposer_address": "f9854e3cb13e69501b5c596c1fb7a44db231b38e",
+  "tx_count": 4,
+  "supplier": {
+    "msg_stake": [
+      {
+        "tx_index": 0,
+        "operator_address": "pokt16ar6g3wd9ppat0rtm390wdhnt06kf3z4u2mxm8",
+        "stake_amount": 60000000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 1,
+        "operator_address": "pokt15u74x2tczuuurhd8rc33tuwqakh7fv94upe92s",
+        "stake_amount": 60000000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 2,
+        "operator_address": "pokt15xaclfwlelx2x9qtlwq3u9nmxtdrk9459ype5w",
+        "stake_amount": 60000000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 3,
+        "operator_address": "pokt12qse7tla856d4xqru2eg9w4hta6cy2npzuzlku",
+        "stake_amount": 60000000000,
+        "stake_denom": "upokt"
+      }
+    ],
+    "events_staked": [
+      {
+        "tx_index": 0,
+        "session_end_height": 135840
+      },
+      {
+        "tx_index": 1,
+        "session_end_height": 135840
+      },
+      {
+        "tx_index": 2,
+        "session_end_height": 135840
+      },
+      {
+        "tx_index": 3,
+        "session_end_height": 135840
+      }
+    ],
+    "history_operators": [
+      "pokt12qse7tla856d4xqru2eg9w4hta6cy2npzuzlku",
+      "pokt15u74x2tczuuurhd8rc33tuwqakh7fv94upe92s",
+      "pokt15xaclfwlelx2x9qtlwq3u9nmxtdrk9459ype5w",
+      "pokt16ar6g3wd9ppat0rtm390wdhnt06kf3z4u2mxm8"
+    ],
+    "scu_rows_min": 132
+  }
+}
