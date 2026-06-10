@@ -1,10 +1,74 @@
 package consumer
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"log/slog"
 	"testing"
+	"time"
 
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/pokt-network/pocketscribe/internal/metrics"
 	natsx "github.com/pokt-network/pocketscribe/internal/nats"
+	psv1 "github.com/pokt-network/pocketscribe/internal/proto/gen/pocketscribe/v1"
 )
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+}
+
+func newTestMetrics() *metrics.Consumer {
+	return metrics.NewConsumer(prometheus.NewRegistry())
+}
+
+// noopBatchHandlerUnit is a minimal BatchHandler for white-box unit tests.
+type noopBatchHandlerUnit struct{ id string }
+
+func (h *noopBatchHandlerUnit) ID() string                { return h.id }
+func (h *noopBatchHandlerUnit) FirstValidVersion() string { return "v0.1.0" }
+func (h *noopBatchHandlerUnit) FlushHeight(_ context.Context, _ pgx.Tx, _ *psv1.BlockEnvelope, _ []Message) error {
+	return nil
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// fakeMsg implements jetstream.Msg for unit tests; only Subject() and Data()
+// need real values — all ack/nak methods are no-ops.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type fakeMsg struct {
+	subject string
+	data    []byte
+	headers nats.Header
+}
+
+func (m fakeMsg) Subject() string      { return m.subject }
+func (m fakeMsg) Data() []byte         { return m.data }
+func (m fakeMsg) Headers() nats.Header { return m.headers }
+func (m fakeMsg) Reply() string        { return "" }
+func (m fakeMsg) Metadata() (*jetstream.MsgMetadata, error) {
+	return nil, fmt.Errorf("no metadata in fakeMsg")
+}
+
+// fakeMsgWithMeta is like fakeMsg but Metadata() returns a real value,
+// so the `if err == nil { msgID = fmt.Sprintf(...) }` branch in
+// BatchRuntime.handle (batch.go:149-151) is exercised.
+type fakeMsgWithMeta struct{ fakeMsg }
+
+func (m fakeMsgWithMeta) Metadata() (*jetstream.MsgMetadata, error) {
+	return &jetstream.MsgMetadata{Sequence: jetstream.SequencePair{Stream: 77}}, nil
+}
+func (m fakeMsg) Ack() error                         { return nil }
+func (m fakeMsg) DoubleAck(_ context.Context) error  { return nil }
+func (m fakeMsg) Nak() error                         { return nil }
+func (m fakeMsg) NakWithDelay(_ time.Duration) error { return nil }
+func (m fakeMsg) InProgress() error                  { return nil }
+func (m fakeMsg) Term() error                        { return nil }
+func (m fakeMsg) TermWithReason(_ string) error      { return nil }
 
 // TestBatchRuntimeSubjectClassification confirms the two subject branches in
 // BatchRuntime.handle via HeightFromSubject: fan-out subjects must resolve
@@ -125,4 +189,119 @@ func TestBatchRuntimeMaxAckPendingConstraint(t *testing.T) {
 	}
 	// The integration tests (18-21) are the real regression; this test preserves
 	// the documented reasoning for MaxAckPending=-1 in the codebase.
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Runtime.handle — bad subject path (Term + return nil)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestRuntimeHandle_BadSubject verifies that handle calls Term on an
+// unparseable subject and returns nil (not the parse error), covering the
+// `_ = msg.Term(); return nil` branch in runtime.go:121-125.
+func TestRuntimeHandle_BadSubject(t *testing.T) {
+	rt := &Runtime{
+		handler: NewNoOpHandler("probe", "v0.1.0"),
+		logger:  discardLogger(),
+		metrics: newTestMetrics(),
+	}
+	msg := fakeMsg{subject: "pokt.unknown.xyz"} // not parseable by HeightFromBlockSubject
+	if err := rt.handle(context.Background(), msg); err != nil {
+		t.Fatalf("handle with bad subject should return nil, got: %v", err)
+	}
+}
+
+// TestBatchRuntimeHandle_BadSubject mirrors the same assertion for BatchRuntime.
+func TestBatchRuntimeHandle_BadSubject(t *testing.T) {
+	rt := &BatchRuntime{
+		handler: &noopBatchHandlerUnit{id: "probe"},
+		logger:  discardLogger(),
+		metrics: newTestMetrics(),
+		buf:     make(map[int64]*heightBuf),
+	}
+	msg := fakeMsg{subject: "pokt.unknown.xyz"}
+	if err := rt.handle(context.Background(), msg); err != nil {
+		t.Fatalf("handle with bad subject should return nil, got: %v", err)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BatchRuntime.handle — envelope parse error path
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestBatchRuntimeHandle_FanOutMetadataFallback covers the branch where
+// Metadata() succeeds (no Nats-Msg-Id header), so msgID is taken from the
+// stream sequence number (batch.go:149-150).
+func TestBatchRuntimeHandle_FanOutMetadataFallback(t *testing.T) {
+	rt := &BatchRuntime{
+		handler: &noopBatchHandlerUnit{id: "probe"},
+		logger:  discardLogger(),
+		metrics: newTestMetrics(),
+		buf:     make(map[int64]*heightBuf),
+	}
+	msg := fakeMsgWithMeta{fakeMsg{
+		subject: natsx.TxSubject(5, 0),
+		data:    []byte{0x01},
+		headers: nats.Header{}, // no Nats-Msg-Id header → metadata fallback
+	}}
+	if err := rt.handle(context.Background(), msg); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	// Message should be buffered with msgID "77" (stream sequence).
+	if buf := rt.buf[5]; buf == nil || len(buf.msgs) != 1 {
+		t.Fatalf("expected 1 buffered message at height 5, got %v", rt.buf[5])
+	}
+}
+
+// TestBatchRuntimeHandle_EnvelopeParseError verifies that handle returns an
+// error when the block envelope message has corrupt body, covering the
+// `env.Unmarshal` error branch at batch.go:172-174.
+func TestBatchRuntimeHandle_EnvelopeParseError(t *testing.T) {
+	rt := &BatchRuntime{
+		handler: &noopBatchHandlerUnit{id: "probe"},
+		logger:  discardLogger(),
+		metrics: newTestMetrics(),
+		buf:     make(map[int64]*heightBuf),
+	}
+	// A "pokt.block.{H}" subject triggers the envelope path; garbage data
+	// causes Unmarshal to fail.
+	msg := fakeMsg{
+		subject: natsx.BlockSubject(42),
+		data:    []byte{0xFF, 0xFE, 0xFD}, // invalid protobuf
+	}
+	if err := rt.handle(context.Background(), msg); err == nil {
+		t.Fatal("expected error from handle when block envelope data is corrupt")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BatchRuntime.handle — fan-out with Nats-Msg-Id header path
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestBatchRuntimeHandle_FanOutWithHeader verifies the Nats-Msg-Id header branch:
+// when the header is set, msgID takes its value (batch.go:152-153).
+// Also covers the dedup (seen-map) redelivery path (batch.go:155-163)
+// by calling handle twice with the same msgID.
+func TestBatchRuntimeHandle_FanOutWithHeader(t *testing.T) {
+	rt := &BatchRuntime{
+		handler: &noopBatchHandlerUnit{id: "probe"},
+		logger:  discardLogger(),
+		metrics: newTestMetrics(),
+		buf:     make(map[int64]*heightBuf),
+	}
+
+	hdr := nats.Header{}
+	hdr.Set("Nats-Msg-Id", "test-dedup-id-42")
+
+	msg1 := fakeMsg{subject: natsx.TxSubject(10, 0), data: []byte{0x01}, headers: hdr}
+	msg2 := fakeMsg{subject: natsx.TxSubject(10, 0), data: []byte{0x01}, headers: hdr} // duplicate
+
+	// First delivery: should buffer without error.
+	if err := rt.handle(context.Background(), msg1); err != nil {
+		t.Fatalf("first handle: %v", err)
+	}
+
+	// Second delivery with same msgID: triggers the seen-map InProgress path.
+	if err := rt.handle(context.Background(), msg2); err != nil {
+		t.Fatalf("second handle (dedup): %v", err)
+	}
 }
