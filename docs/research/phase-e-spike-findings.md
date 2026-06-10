@@ -187,3 +187,42 @@ Everything ≪ 256 KiB soft cap (largest single message = the EventSupplierStake
 6. **Ban list for decoder code paths** (registry-dependent, resolves only to whichever tree registered): `proto.MessageType/MessageName`, codec `InterfaceRegistry`/`UnpackAny`, unguarded jsonpb on enum fields.
 7. **Supplier store rules** (v0.1.20≡v0.1.29 keys.go): the prefix table from Goal 4d, including: only `Supplier/operator_address/` and `ServiceConfigUpdate/service_id/` values are protos; the other SCU layouts are pointer values; `p_supplier` is Params; **stored Supplier is dehydrated in this era** — ServiceConfigUpdate primaries must be ingested as their own entity.
 8. **Sizing**: fan-out ≈ 650–1,200 msgs on stake-heavy blocks; max observed single message 19.9 KiB; 256 KiB cap is comfortable; KV index amplification (3–4× per service config) dominates message volume.
+
+---
+
+## Supplier KV key layout — intermediate tag verification (2026-06-10)
+
+### Scope
+
+Fetched `x/supplier/types/keys.go` from pokt-network/poktroll at tags v0.1.8, v0.1.12, v0.1.17, v0.1.24, v0.1.20, and v0.1.29 (v0.1.20 and v0.1.29 were the prior verified baseline — confirmed byte-identical in Goal 4d above).
+
+### Result: **DRIFT FOUND between v0.1.8 and v0.1.12**
+
+All tags from v0.1.12 through v0.1.29 are **byte-identical** to each other in this file. The v0.1.8 tree diverges in one place:
+
+#### `SupplierServiceConfigUpdateKey` component ordering
+
+| Tag | Key component order | Comment in source |
+|---|---|---|
+| **v0.1.8** | `addr + activationHeight + serviceId` | `<SupplierAddr>/ <ActHeight>/ <ServiceID>/` |
+| **v0.1.12+** | `addr + serviceId + activationHeight` | `<SupplierAddr>/ <ServiceID>/ <ActHeight>/` |
+
+The **prefix string constants** (e.g. `ServiceConfigUpdateKeyPrefix`, `SupplierOperatorKeyPrefix`) are **identical across all versions** — the drift is solely in the component ordering used when building the secondary-index key.
+
+#### Additional change at v0.1.12
+
+v0.1.12 adds a new helper function `SupplierOperatorServiceKey(supplierOperatorAddr, serviceId string) []byte` that does not exist in v0.1.8. This key does not create a new prefix; it builds a sub-key under `Supplier/operator_address/`.
+
+### Decoder implications
+
+The affected key is the `ServiceConfigUpdate/operator_address/` **secondary index** — the KV whose value is a pointer (primary-key bytes), not a proto. See Goal 4d for the full key table.
+
+The v0_1_8 decoder (covering applied-upgrade heights before v0.1.10 goes live) must use `addr + activationHeight + serviceId` ordering when discriminating that secondary index. The v0_1_10 and all later decoders must use `addr + serviceId + activationHeight`.
+
+**Boundary**: the upgrade from v0.1.8 to v0.1.10 is applied at height **78683** (based on existing `upgradesForFixtures` entries in the integration test harness). Any SCU secondary-index KV written between the genesis of the v0.1.8 era and height 78682 will follow the old `addr/actHeight/svcId` ordering.
+
+**Action required before implementing v0_1_8 decoder**: confirm the exact applied height for v0.1.8 → v0.1.10 from the `upgrades` table (or the on-chain `x/upgrade` history). Ensure `DecodeSupplierKV` in the v0_1_8 decoder uses the old layout for the secondary index discrimination. The primary `ServiceConfigUpdate/service_id/` key and the `Supplier/operator_address/` entity key are **not affected** by this drift.
+
+### No other drift
+
+ParamsKey, ModuleName, StoreKey, MemStoreKey, all six prefix string constants, and all other key-building functions are identical across v0.1.8, v0.1.12, v0.1.17, v0.1.24, v0.1.20, and v0.1.29.
