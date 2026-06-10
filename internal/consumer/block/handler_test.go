@@ -19,6 +19,35 @@ func (f *fakeInserter) InsertBlock(_ context.Context, _ pgx.Tx, h *types.BlockHe
 	return nil
 }
 
+// TestHandlerID verifies the stable consumer name.
+func TestHandlerID(t *testing.T) {
+	h := New(&fakeInserter{})
+	if h.ID() != "block" {
+		t.Fatalf("ID = %q, want \"block\"", h.ID())
+	}
+}
+
+// TestHandlerFirstValidVersion verifies the first-valid version string.
+func TestHandlerFirstValidVersion(t *testing.T) {
+	h := New(&fakeInserter{})
+	if h.FirstValidVersion() != "v0.1.0" {
+		t.Fatalf("FirstValidVersion = %q, want \"v0.1.0\"", h.FirstValidVersion())
+	}
+}
+
+// TestHandleCorruptEnvelope verifies that invalid envelope bytes return a
+// descriptive error wrapping the height.
+func TestHandleCorruptEnvelope(t *testing.T) {
+	h := New(&fakeInserter{})
+	err := h.Handle(context.Background(), nil, consumer.Message{Height: 42, Data: []byte{0xff, 0xfe, 0x00}})
+	if err == nil {
+		t.Fatal("expected error for corrupt BlockEnvelope bytes")
+	}
+	if err.Error() == "" {
+		t.Fatal("error message should not be empty")
+	}
+}
+
 // TestHandleDecodesEnvelopeAndInserts verifies that Handle maps a BlockEnvelope
 // to a BlockHeader correctly (no router, no meta bytes — ADR-022 amendment).
 func TestHandleDecodesEnvelopeAndInserts(t *testing.T) {

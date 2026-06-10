@@ -74,6 +74,58 @@ func TestKVSubjectRoundtrip(t *testing.T) {
 	}
 }
 
+// TestHeightFromTxSubjectErrors verifies all error branches in HeightFromTxSubject.
+func TestHeightFromTxSubjectErrors(t *testing.T) {
+	cases := []struct {
+		subject string
+		desc    string
+	}{
+		{"pokt.kv.supplier.1", "not a tx subject"},
+		{"pokt.tx.1", "missing index token — only 1 part after prefix"},
+		{"pokt.tx.abc.0", "non-numeric height"},
+		{"pokt.tx.1.abc", "non-numeric tx index"},
+	}
+	for _, c := range cases {
+		if _, _, err := HeightFromTxSubject(c.subject); err == nil {
+			t.Errorf("HeightFromTxSubject(%q) [%s]: expected error", c.subject, c.desc)
+		}
+	}
+}
+
+// TestHeightFromEventSubjectErrors verifies all error branches.
+func TestHeightFromEventSubjectErrors(t *testing.T) {
+	cases := []struct {
+		subject string
+		desc    string
+	}{
+		{"pokt.kv.supplier.1", "not an event subject"},
+		{"pokt.events.coin_spent", "only 1 part after prefix — no height"},
+		{"pokt.events.coin_spent.notanumber", "non-numeric height"},
+	}
+	for _, c := range cases {
+		if _, err := HeightFromEventSubject(c.subject); err == nil {
+			t.Errorf("HeightFromEventSubject(%q) [%s]: expected error", c.subject, c.desc)
+		}
+	}
+}
+
+// TestHeightFromKVSubjectErrors verifies all error branches.
+func TestHeightFromKVSubjectErrors(t *testing.T) {
+	cases := []struct {
+		subject string
+		desc    string
+	}{
+		{"pokt.block.1", "not a kv subject"},
+		{"pokt.kv.supplier", "only 1 part after prefix — no height"},
+		{"pokt.kv.supplier.notanumber", "non-numeric height"},
+	}
+	for _, c := range cases {
+		if _, err := HeightFromKVSubject(c.subject); err == nil {
+			t.Errorf("HeightFromKVSubject(%q) [%s]: expected error", c.subject, c.desc)
+		}
+	}
+}
+
 func TestHeightFromSubjectDispatch(t *testing.T) {
 	cases := []struct {
 		subject string

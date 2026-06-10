@@ -25,7 +25,8 @@ type BatchRuntime struct {
 	consumer jetstream.Consumer
 	logger   *slog.Logger
 	metrics  *metrics.Consumer
-	buf      map[int64]*heightBuf // accessed only from the consume goroutine
+	// TODO(phase-g): partial-flush valves (ADR-024 triggers 2-3) + orphaned heightBuf eviction.
+	buf map[int64]*heightBuf // accessed only from the consume goroutine
 }
 
 type heightBuf struct {

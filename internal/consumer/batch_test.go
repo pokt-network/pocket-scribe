@@ -76,6 +76,31 @@ func TestNewBatchRuntime(t *testing.T) {
 	}
 }
 
+// TestNewRuntimeConstruction verifies that NewRuntime initialises correctly.
+// The nil fields are acceptable — we're only testing construction, not Run.
+func TestNewRuntimeConstruction(t *testing.T) {
+	rt := NewRuntime(Config{})
+	if rt == nil {
+		t.Fatal("NewRuntime returned nil")
+	}
+}
+
+// TestNoOpHandlerMethods verifies the NoOpHandler identity methods return the
+// values passed at construction time — these are used in consumer_registry rows.
+func TestNoOpHandlerMethods(t *testing.T) {
+	h := NewNoOpHandler("block", "v0.1.0")
+	if h.ID() != "block" {
+		t.Fatalf("ID = %q, want \"block\"", h.ID())
+	}
+	if h.FirstValidVersion() != "v0.1.0" {
+		t.Fatalf("FirstValidVersion = %q, want \"v0.1.0\"", h.FirstValidVersion())
+	}
+	// Handle must be a no-op (nil error, no panic).
+	if err := h.Handle(nil, nil, Message{}); err != nil { //nolint:staticcheck
+		t.Fatalf("Handle returned error: %v", err)
+	}
+}
+
 // TestBatchRuntimeMaxAckPendingConstraint documents the JetStream consumer
 // configuration constraint required by BatchRuntime's ack-after-commit protocol.
 //

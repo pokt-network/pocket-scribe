@@ -118,5 +118,31 @@ func TestDecoderForShapeBreakEras(t *testing.T) {
 	}
 }
 
+// TestDecoderForGenesisVersionUnregisteredFallsBackToUpgrades verifies that
+// when genesisVersion is NOT in the registry, DecoderFor falls back to the
+// earliest registered version found in the upgrades list.
+// This exercises the second fallback loop (lines 86-90 in router.go).
+func TestDecoderForGenesisVersionUnregisteredFallsBackToUpgrades(t *testing.T) {
+	reg := map[string]decoders.Decoder{
+		"v0_1_10": v0_1_10.Decoder{},
+	}
+	// genesisVersion "v0_1_0" is NOT in the registry; v0_1_10 IS.
+	r, err := NewStaticRouter([]Upgrade{
+		{Name: "v0.1.10", AppliedAtHeight: 78683, DecoderVersion: "v0_1_10"},
+	}, reg, "v0_1_0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// height 1 is before any upgrade — genesis version is unregistered,
+	// so the first pass yields no chosen decoder; the fallback loop must find v0_1_10.
+	d, err := r.DecoderFor(1)
+	if err != nil {
+		t.Fatalf("DecoderFor(1): %v", err)
+	}
+	if d.Version() != "v0_1_10" {
+		t.Fatalf("expected fallback to v0_1_10, got %s", d.Version())
+	}
+}
+
 var _ = v0_1_8.Decoder{}  // ensure import is used
 var _ = v0_1_27.Decoder{} // ensure import is used
