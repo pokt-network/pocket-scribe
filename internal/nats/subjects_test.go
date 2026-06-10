@@ -34,3 +34,64 @@ func TestMsgIDDeterministic(t *testing.T) {
 		t.Fatal("MsgID collided across heights")
 	}
 }
+
+func TestTxSubjectRoundtrip(t *testing.T) {
+	s := TxSubject(135836, 3)
+	if s != "pokt.tx.135836.3" {
+		t.Fatalf("TxSubject = %q", s)
+	}
+	h, idx, err := HeightFromTxSubject(s)
+	if err != nil || h != 135836 || idx != 3 {
+		t.Fatalf("HeightFromTxSubject = %d,%d,%v", h, idx, err)
+	}
+}
+
+func TestEventSubjectSanitizesType(t *testing.T) {
+	s := EventSubject("pocket.supplier.EventSupplierStaked", 135836)
+	if s != "pokt.events.pocket_supplier_EventSupplierStaked.135836" {
+		t.Fatalf("EventSubject = %q", s)
+	}
+	h, err := HeightFromEventSubject(s)
+	if err != nil || h != 135836 {
+		t.Fatalf("HeightFromEventSubject = %d,%v", h, err)
+	}
+	if f := EventSubjectFilter("pocket.supplier.EventSupplierStaked"); f != "pokt.events.pocket_supplier_EventSupplierStaked.*" {
+		t.Fatalf("EventSubjectFilter = %q", f)
+	}
+}
+
+func TestKVSubjectRoundtrip(t *testing.T) {
+	s := KVSubject("supplier", 135836)
+	if s != "pokt.kv.supplier.135836" {
+		t.Fatalf("KVSubject = %q", s)
+	}
+	h, err := HeightFromKVSubject(s)
+	if err != nil || h != 135836 {
+		t.Fatalf("HeightFromKVSubject = %d,%v", h, err)
+	}
+	if f := KVSubjectFilter("supplier"); f != "pokt.kv.supplier.*" {
+		t.Fatalf("KVSubjectFilter = %q", f)
+	}
+}
+
+func TestHeightFromSubjectDispatch(t *testing.T) {
+	cases := []struct {
+		subject string
+		want    int64
+		wantErr bool
+	}{
+		{"pokt.block.42", 42, false},
+		{"pokt.tx.42.7", 42, false},
+		{"pokt.events.pocket_supplier_EventSupplierStaked.42", 42, false},
+		{"pokt.kv.supplier.42", 42, false},
+		{"pokt.kv.supplier.notanumber", 0, true},
+		{"pokt.unknown.42", 0, true},
+		{"pokt.tx.42", 0, true}, // missing idx token
+	}
+	for _, c := range cases {
+		h, err := HeightFromSubject(c.subject)
+		if c.wantErr != (err != nil) || (!c.wantErr && h != c.want) {
+			t.Errorf("HeightFromSubject(%q) = %d,%v want %d,err=%v", c.subject, h, err, c.want, c.wantErr)
+		}
+	}
+}
