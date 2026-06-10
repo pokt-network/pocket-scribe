@@ -69,9 +69,9 @@ Per version, ~3 fixtures are selected:
 | v0.1.18 | 116100 | 117453 | `v0_1_10` | 116100 (boundary/quiet), 116913 (msg_stake×37 + events_staked×37 + KV×37), 117001 (quiet) | covered |
 | v0.1.19 | 117454 | 135296 | `v0_1_10` | 117454 (boundary, tx_count=1 non-supplier), 119236 (msg_stake×70 + events_staked×70 + KV×70), 134001 (quiet) | covered |
 | v0.1.20 | 135297 | 138930 | `v0_1_20` | 135297 (boundary), 135836 (supplier activity), 135837 (supplier activity) | covered |
-| v0.1.21 | 138931 | 155172 | `v0_1_20` | — | pending curation (batch 13e) |
-| v0.1.22 | 155173 | 161108 | `v0_1_20` | — | pending curation (batch 13e) |
-| v0.1.23 | 161109 | 161168 | `v0_1_20` | — | pending curation (batch 13e) |
+| v0.1.21 | 138931 | 155172 | `v0_1_20` | 138931 (boundary, tx_count=2), 146651 (msg_stake×67 + events_staked×67 + KV×67), 155172 (quiet) | covered |
+| v0.1.22 | 155173 | 161108 | `v0_1_20` | 155173 (boundary/quiet), 155296 (msg_stake×2 + events_staked×2 + KV×2), 161107 (quiet) | covered |
+| v0.1.23 | 161109 | 161168 | `v0_1_20` | 161109 (boundary/quiet), 161155 (tx-bearing 30 txs — negative, no supplier activity), 161168 (quiet) | negative-only |
 | v0.1.24 | 161169 | 190973 | `v0_1_20` | — | pending curation (batch 13f) |
 | v0.1.25 | 190974 | 190978 | `v0_1_20` | — | pending curation (batch 13f) |
 | v0.1.26 | 190979 | 247892 | `v0_1_20` | — | pending curation (batch 13f) |
