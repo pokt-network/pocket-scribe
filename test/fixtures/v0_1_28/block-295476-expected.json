@@ -1,0 +1,68 @@
+{
+  "height": 295476,
+  "time": "2025-08-15T12:46:52.059326991Z",
+  "hash": "5bafa27afe8379b3666b6cb3d0490ff8977ee6bcda14f2963b324a2d8ff4990e",
+  "proposer_address": "e106499aa927d139a6c295932e5a6408b02c6aad",
+  "tx_count": 5,
+  "supplier": {
+    "msg_stake": [],
+    "events_staked": [],
+    "history_operators": [
+      "pokt1h0d0vqpg290038r6ddr6e06mdtnet308nl0qhj",
+      "pokt1h0pk9t8ezphtt3gzmt00960j3vsn7peywf6pwd",
+      "pokt1h4n2nz5r45dk8wd5dr7cyysver52nfdfhtw7qy",
+      "pokt1h60dcgq73fn2gy237nwlmmzse7659cwrfwkdpq",
+      "pokt1h8dm3ywmzmhufagtwlk3ku07evm9l5rgqpwdl2"
+    ],
+    "scu_rows_min": 40,
+    "msg_unstake": [
+      {
+        "tx_index": 0,
+        "operator_address": "pokt1h0pk9t8ezphtt3gzmt00960j3vsn7peywf6pwd"
+      },
+      {
+        "tx_index": 1,
+        "operator_address": "pokt1h8dm3ywmzmhufagtwlk3ku07evm9l5rgqpwdl2"
+      },
+      {
+        "tx_index": 2,
+        "operator_address": "pokt1h60dcgq73fn2gy237nwlmmzse7659cwrfwkdpq"
+      },
+      {
+        "tx_index": 3,
+        "operator_address": "pokt1h4n2nz5r45dk8wd5dr7cyysver52nfdfhtw7qy"
+      },
+      {
+        "tx_index": 4,
+        "operator_address": "pokt1h0d0vqpg290038r6ddr6e06mdtnet308nl0qhj"
+      }
+    ],
+    "events_unbonding_begin": [
+      {
+        "tx_index": 0,
+        "session_end_height": 295500,
+        "unbonding_end_height": 298920
+      },
+      {
+        "tx_index": 1,
+        "session_end_height": 295500,
+        "unbonding_end_height": 298920
+      },
+      {
+        "tx_index": 2,
+        "session_end_height": 295500,
+        "unbonding_end_height": 298920
+      },
+      {
+        "tx_index": 3,
+        "session_end_height": 295500,
+        "unbonding_end_height": 298920
+      },
+      {
+        "tx_index": 4,
+        "session_end_height": 295500,
+        "unbonding_end_height": 298920
+      }
+    ]
+  }
+}
