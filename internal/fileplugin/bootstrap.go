@@ -3,6 +3,7 @@ package fileplugin
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +14,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/pokt-network/pocketscribe/internal/decoders"
+	"github.com/pokt-network/pocketscribe/internal/metrics"
 	natsx "github.com/pokt-network/pocketscribe/internal/nats"
 	psv1 "github.com/pokt-network/pocketscribe/internal/proto/gen/pocketscribe/v1"
 )
@@ -29,7 +31,13 @@ import (
 // the deterministic enumeration order of the captured files: block-level
 // events first (ResponseFinalizeBlock.events), then per-tx events in tx
 // order; KV pairs in data-file order. Returns (heights, messages) published.
-func Bootstrap(ctx context.Context, client *natsx.Client, dir string, maxHeight int64, chainID string) (int, int, error) {
+//
+// Payload caps: payloads above 256 KiB (SoftCapBytes) are logged and counted
+// but still published; payloads above 1 MiB (HardCapBytes) are refused at the
+// source — the NATS server's default max_payload would reject them anyway, so
+// refusing here keeps the failure explicit and leaves the height un-acked.
+// fpm may be nil (tests that do not need metric assertions).
+func Bootstrap(ctx context.Context, client *natsx.Client, dir string, maxHeight int64, chainID string, fpm *metrics.FilePlugin) (int, int, error) {
 	pattern := filepath.Join(dir, "block-*-meta")
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
@@ -53,10 +61,10 @@ func Bootstrap(ctx context.Context, client *natsx.Client, dir string, maxHeight 
 	sort.Slice(entries, func(i, j int) bool { return entries[i].height < entries[j].height })
 
 	js := client.JetStream()
-	publish := func(subj string, data []byte, msgID string) error {
+	publish := capPublish(func(subj string, data []byte, msgID string) error {
 		_, err := js.Publish(ctx, subj, data, jetstream.WithMsgID(msgID))
 		return err
-	}
+	}, slog.Default(), fpm)
 	heights, total := 0, 0
 	for _, e := range entries {
 		n, err := fanOutHeight(ctx, publish, e.height, e.path, chainID)

@@ -72,6 +72,8 @@ func newBlockCmd() *cobra.Command {
 			}
 
 			h := blockhandler.New(storeInserter{})
+			// No GenesisVersion: block (v0.1.0) can never be dormant; the
+			// block consumer stays network-config-free (see Phase F plan).
 			rt := runtime.NewRuntime(runtime.Config{
 				Handler:  h,
 				Store:    st,

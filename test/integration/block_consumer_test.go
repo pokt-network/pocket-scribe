@@ -100,7 +100,7 @@ func bootstrapHeights(t *testing.T, heights ...int64) {
 		copyFile(t, dataSrc, filepath.Join(dir, dataName))
 	}
 
-	heights2, msgs, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket")
+	heights2, msgs, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket", nil)
 	if err != nil {
 		t.Fatalf("fileplugin.Bootstrap: %v", err)
 	}
@@ -173,7 +173,9 @@ func TestBlockConsumerRowCorrectness(t *testing.T) { // spec test 16a
 
 	bh := startBlockRuntime(t, stream, "block")
 
-	// Fixtures: one per version boundary (v0_1_0@1, v0_1_10@78683, v0_1_20@135297, v0_1_28@287932, v0_1_29@382250).
+	// Fixtures: one per version boundary (v0_1_0@1, v0_1_10@78683, v0_1_20@135297, v0_1_28@287932, v0_1_29@382250)
+	// plus 3 multi-era representatives (early-era 78628, migration-era 96606, late-era 166402).
+	// Block header decode is version-invariant so no upgrade seeding is needed here.
 	type fixtureCase struct {
 		height       int64
 		expectedPath string
@@ -184,10 +186,16 @@ func TestBlockConsumerRowCorrectness(t *testing.T) { // spec test 16a
 		{135297, "../../test/fixtures/v0_1_20/block-135297-expected.json"},
 		{287932, "../../test/fixtures/v0_1_28/block-287932-expected.json"},
 		{382250, "../../test/fixtures/v0_1_29/block-382250-expected.json"},
+		// Early-era: v0.1.2 binary era, dir v0_1_0 (decoder v0_1_0 via fallback).
+		{78628, "../../test/fixtures/v0_1_0/block-78628-expected.json"},
+		// Migration-era: v0.1.15 binary era, dir v0_1_10 (decoder v0_1_10 via fallback).
+		{96606, "../../test/fixtures/v0_1_10/block-96606-expected.json"},
+		// Late-era: v0.1.24 binary era, dir v0_1_20 (decoder v0_1_20 via fallback).
+		{166402, "../../test/fixtures/v0_1_20/block-166402-expected.json"},
 	}
 
 	// Bootstrap all heights via the real fan-out pipeline.
-	bootstrapHeights(t, 1, 78683, 135297, 287932, 382250)
+	bootstrapHeights(t, 1, 78683, 135297, 287932, 382250, 78628, 96606, 166402)
 
 	for _, tc := range cases {
 		want := loadExpected(t, tc.expectedPath)
@@ -234,7 +242,7 @@ func TestBlockConsumerANDSeal(t *testing.T) { // spec test 16b
 	waitCursor(t, noopRH.store, "noop-a", 3, 15*time.Second)
 
 	// Both required consumers passed height 3 → it must be sealed.
-	assertSealed(t, blockRH.store, 3, true)
+	assertSealed(t, blockRH.store, 3, genesisV0_1_0, true)
 }
 
 // Test 17: self-heal — bootstrap heights 1 and 3 first (gap at 2), assert

@@ -228,7 +228,7 @@ func TestBatchRuntimeContextCancelAndRestart(t *testing.T) { // spec test 22b
 	waitCursor(t, supplierRH2.store, "supplier", 3, 30*time.Second)
 
 	// Sealed: both consumers at or past height 3.
-	assertSealed(t, supplierRH2.store, 3, true)
+	assertSealed(t, supplierRH2.store, 3, genesisV0_1_0, true)
 
 	ctx := context.Background()
 

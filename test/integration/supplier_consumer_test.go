@@ -284,19 +284,23 @@ func TestSupplierMsgDecodeAcrossVersions(t *testing.T) { // spec test 18
 	blockRH := startBlockRuntime(t, stream, "block")
 	supplierRH := startSupplierRuntime(t, stream, ids)
 
-	// Bootstrap all 4 positive supplier fixtures.
-	bootstrapHeights(t, 102542, 135836, 290584, 385145)
+	// Bootstrap all fixtures: 4 original positive supplier heights + 3 new
+	// multi-era representatives (early-era/negative, migration-era, late-era).
+	bootstrapHeights(t, 102542, 135836, 290584, 385145, 78628, 96606, 166402)
 
 	// Wait for both runtimes to catch up. Heights are non-contiguous so we poll
 	// HasProcessed instead of the contiguous cursor (mirrors test 16a pattern).
-	for _, h := range []int64{102542, 135836, 290584, 385145} {
+	for _, h := range []int64{102542, 135836, 290584, 385145, 78628, 96606, 166402} {
 		waitHasProcessed(t, blockRH.store, "block", h, 60*time.Second)
 		waitHasProcessed(t, supplierRH.store, "supplier", h, 60*time.Second)
 	}
 
 	// Expected decoded_by_version ids for each fixture height (lenient fallback
 	// chain: 102542 in v0.1.17 era → nearest registered earlier = v0_1_10 → id 110;
-	// 135836 → v0_1_20 → 120; 290584 → v0_1_28 → 128; 385145 → v0_1_29 → 129).
+	// 135836 → v0_1_20 → 120; 290584 → v0_1_28 → 128; 385145 → v0_1_29 → 129;
+	// 78628 in v0.1.2 era → nearest registered earlier = v0_1_0 → id 100 (negative, no msg_stake);
+	// 96606 in v0.1.15 era → nearest registered earlier = v0_1_10 → id 110 (migration-era, no msg_stake);
+	// 166402 in v0.1.24 era → nearest registered earlier = v0_1_20 → id 120).
 	type fixtureCase struct {
 		height          int64
 		expectedPath    string
@@ -307,6 +311,13 @@ func TestSupplierMsgDecodeAcrossVersions(t *testing.T) { // spec test 18
 		{135836, "../../test/fixtures/v0_1_20/block-135836-expected.json", "v0.1.20"},
 		{290584, "../../test/fixtures/v0_1_28/block-290584-expected.json", "v0.1.28"},
 		{385145, "../../test/fixtures/v0_1_29/block-385145-expected.json", "v0.1.29"},
+		// Early-era: v0.1.2 binary era, decoder falls back to v0_1_0; quiet/negative (no msg_stake).
+		{78628, "../../test/fixtures/v0_1_0/block-78628-expected.json", "v0.1.0"},
+		// Migration-era: v0.1.15 binary era, decoder falls back to v0_1_10;
+		// EventSupplierUnbondingEnd×19 + KV only — no msg_stake in this block.
+		{96606, "../../test/fixtures/v0_1_10/block-96606-expected.json", "v0.1.10"},
+		// Late-era: v0.1.24 binary era, decoder falls back to v0_1_20; msg_stake×45.
+		{166402, "../../test/fixtures/v0_1_20/block-166402-expected.json", "v0.1.20"},
 	}
 
 	for _, tc := range cases {
@@ -586,7 +597,7 @@ func TestSupplierANDSealWithQuietHeights(t *testing.T) { // spec test 21
 	// Step 3: wait for block cursor to reach 3, then assert NOT sealed because
 	// supplier is registered but its cursor is still 0.
 	waitCursor(t, blockRH.store, "block", 3, 20*time.Second)
-	assertSealed(t, blockRH.store, 3, false)
+	assertSealed(t, blockRH.store, 3, genesisV0_1_0, false)
 
 	// Step 4: restart the supplier runtime against the same durable
 	// (DeliverAllPolicy → redelivers from seq 0; dedup absorbs duplicates
@@ -597,7 +608,7 @@ func TestSupplierANDSealWithQuietHeights(t *testing.T) { // spec test 21
 	waitCursor(t, supplierRH2.store, "supplier", 3, 30*time.Second)
 
 	// Step 5b: sealed now — both consumers past height 3.
-	assertSealed(t, supplierRH2.store, 3, true)
+	assertSealed(t, supplierRH2.store, 3, genesisV0_1_0, true)
 
 	// Step 5c: quiet heights produced zero data rows (decisions 4 + ADR-024).
 	ctx := context.Background()
@@ -690,7 +701,7 @@ func queryEventUnbondingBegin(t *testing.T, s *store.Store, height int64) []even
 //     unbonding_end_height=298920, supplier IS NOT NULL (embed always present).
 //   - supplier_history: 5 dehydrated rows (one per operator, services IS NULL).
 //   - scu_rows_min: ≥ 40 (real KV fan-out for 5 unstaking suppliers).
-func TestSupplierUnbondingFixture(t *testing.T) { // spec test 23
+func TestSupplierUnbondingFixture(t *testing.T) { // Phase E hardening (informal label; NOT §11.1 test 23 — that is TestDynamicRequiredSetPerHeight)
 	pg.Reset(t)
 	stream := freshStream(t)
 	ids := loadDecoderVersionIDs(t)

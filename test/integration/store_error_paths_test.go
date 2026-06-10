@@ -147,8 +147,17 @@ func TestDeregisterConsumer_ContextCancelled(t *testing.T) {
 
 func TestRequiredSet_ContextCancelled(t *testing.T) {
 	s := storeFrom(t)
-	if _, err := s.RequiredSet(cancelled(), 1); err == nil {
+	if _, err := s.RequiredSet(cancelled(), 1, genesisV0_1_0); err == nil {
 		t.Fatal("expected error with cancelled context")
+	}
+}
+
+func TestRequiredSet_InvalidGenesis(t *testing.T) {
+	s := storeFrom(t)
+	ctx := context.Background()
+	// invalid genesis version surfaces as an error, not a silent empty set
+	if _, err := s.RequiredSet(ctx, 1, "garbage"); err == nil {
+		t.Fatal("want error for invalid genesis version")
 	}
 }
 
@@ -169,8 +178,16 @@ func TestHasProcessed_ContextCancelled(t *testing.T) {
 
 func TestIsSealed_ContextCancelled(t *testing.T) {
 	s := storeFrom(t)
-	if _, err := s.IsSealed(cancelled(), 1); err == nil {
+	if _, err := s.IsSealed(cancelled(), 1, genesisV0_1_0); err == nil {
 		t.Fatal("expected error with cancelled context")
+	}
+}
+
+func TestIsSealed_InvalidGenesis(t *testing.T) {
+	s := storeFrom(t)
+	ctx := context.Background()
+	if _, err := s.IsSealed(ctx, 1, "garbage"); err == nil {
+		t.Fatal("want error for invalid genesis version")
 	}
 }
 

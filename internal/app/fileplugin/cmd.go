@@ -6,10 +6,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	"github.com/pokt-network/pocketscribe/internal/config"
 	"github.com/pokt-network/pocketscribe/internal/fileplugin"
+	"github.com/pokt-network/pocketscribe/internal/metrics"
 	natsx "github.com/pokt-network/pocketscribe/internal/nats"
 )
 
@@ -45,7 +47,8 @@ func NewCmd() *cobra.Command {
 				return fmt.Errorf("ensure stream: %w", err)
 			}
 
-			heights, messages, err := fileplugin.Bootstrap(context.Background(), nc, inputDir, maxHeight, cfg.Network.ChainID)
+			fpm := metrics.NewFilePlugin(prometheus.DefaultRegisterer)
+			heights, messages, err := fileplugin.Bootstrap(context.Background(), nc, inputDir, maxHeight, cfg.Network.ChainID, fpm)
 			if err != nil {
 				return fmt.Errorf("bootstrap: %w", err)
 			}

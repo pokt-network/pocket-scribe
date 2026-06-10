@@ -1,0 +1,115 @@
+{
+  "height": 247921,
+  "time": "2025-07-28T18:50:21.195981501Z",
+  "hash": "5d153ce622c3bf501bab1c6059104b34a532b1e763cf15bad19d9d5255a741f3",
+  "proposer_address": "a498f2a202465ba9d43421b5827cd4f57ec6ae34",
+  "tx_count": 9,
+  "supplier": {
+    "msg_stake": [
+      {
+        "tx_index": 0,
+        "operator_address": "pokt1742tvcl0mdyxmunczhuulw99zetpv8rddtqmak",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 1,
+        "operator_address": "pokt1ewzc44gswpjkgdrayaqjv93uvlpk8t5kww0q47",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 2,
+        "operator_address": "pokt1ktu5x3j0szduc9yecq55emytqappgc3m9a42xx",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 3,
+        "operator_address": "pokt1dskpd48haqxm8scnecge7gqrc4gayhd5znu2d0",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 4,
+        "operator_address": "pokt1n2v43ul30peummc62l3xzpr2nr9z3kjlvl39ke",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 5,
+        "operator_address": "pokt1hf9fl3tz3tke0q6pj4qf8eewjzqzdrs56q2u92",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 6,
+        "operator_address": "pokt1l7zself9hms0zjdq7vctqncrawvgpzh6r9z86v",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 7,
+        "operator_address": "pokt1m5572zcgtlzds2luak0t5jgcln44vqrl2x5g3v",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      },
+      {
+        "tx_index": 8,
+        "operator_address": "pokt1fljvjess4wrg42ne5du6c5lmhhpyn3tayaxtwl",
+        "stake_amount": 60042000000,
+        "stake_denom": "upokt"
+      }
+    ],
+    "events_staked": [
+      {
+        "tx_index": 0,
+        "session_end_height": 247980
+      },
+      {
+        "tx_index": 1,
+        "session_end_height": 247980
+      },
+      {
+        "tx_index": 2,
+        "session_end_height": 247980
+      },
+      {
+        "tx_index": 3,
+        "session_end_height": 247980
+      },
+      {
+        "tx_index": 4,
+        "session_end_height": 247980
+      },
+      {
+        "tx_index": 5,
+        "session_end_height": 247980
+      },
+      {
+        "tx_index": 6,
+        "session_end_height": 247980
+      },
+      {
+        "tx_index": 7,
+        "session_end_height": 247980
+      },
+      {
+        "tx_index": 8,
+        "session_end_height": 247980
+      }
+    ],
+    "history_operators": [
+      "pokt1742tvcl0mdyxmunczhuulw99zetpv8rddtqmak",
+      "pokt1dskpd48haqxm8scnecge7gqrc4gayhd5znu2d0",
+      "pokt1ewzc44gswpjkgdrayaqjv93uvlpk8t5kww0q47",
+      "pokt1fljvjess4wrg42ne5du6c5lmhhpyn3tayaxtwl",
+      "pokt1hf9fl3tz3tke0q6pj4qf8eewjzqzdrs56q2u92",
+      "pokt1ktu5x3j0szduc9yecq55emytqappgc3m9a42xx",
+      "pokt1l7zself9hms0zjdq7vctqncrawvgpzh6r9z86v",
+      "pokt1m5572zcgtlzds2luak0t5jgcln44vqrl2x5g3v",
+      "pokt1n2v43ul30peummc62l3xzpr2nr9z3kjlvl39ke"
+    ],
+    "scu_rows_min": 270
+  }
+}

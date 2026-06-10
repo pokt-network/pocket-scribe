@@ -42,7 +42,7 @@ func TestDeregisterFlipsActive(t *testing.T) { // registry half of spec test 13
 	if !changed {
 		t.Fatal("expected deregister to change a row")
 	}
-	active, err := s.RequiredSet(ctx, 100)
+	active, err := s.RequiredSet(ctx, 100, genesisV0_1_0)
 	if err != nil {
 		t.Fatal(err)
 	}

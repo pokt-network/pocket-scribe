@@ -92,11 +92,12 @@ func newSupplierCmd() *cobra.Command {
 
 			h := supplierhandler.New(rtr, ids)
 			rt := runtime.NewBatchRuntime(runtime.BatchConfig{
-				Handler:  h,
-				Store:    st,
-				Consumer: jsCons,
-				Logger:   slog.Default(),
-				Metrics:  metrics.NewConsumer(prometheus.DefaultRegisterer),
+				Handler:        h,
+				Store:          st,
+				Consumer:       jsCons,
+				Logger:         slog.Default(),
+				Metrics:        metrics.NewConsumer(prometheus.DefaultRegisterer),
+				GenesisVersion: cfg.Network.GenesisDecoderVersion,
 			})
 			return rt.Run(ctx)
 		},

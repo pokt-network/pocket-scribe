@@ -5,8 +5,6 @@
   "proposer_address": "e106499aa927d139a6c295932e5a6408b02c6aad",
   "tx_count": 5,
   "supplier": {
-    "msg_stake": [],
-    "events_staked": [],
     "history_operators": [
       "pokt1h0d0vqpg290038r6ddr6e06mdtnet308nl0qhj",
       "pokt1h0pk9t8ezphtt3gzmt00960j3vsn7peywf6pwd",
