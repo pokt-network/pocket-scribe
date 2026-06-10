@@ -25,7 +25,7 @@ func TestBootstrapFanOutOrderingContract(t *testing.T) {
 	ctx := context.Background()
 
 	dir := filepath.Join("..", "..", "test", "fixtures", "v0_1_0")
-	heights, total, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket")
+	heights, total, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket", nil)
 	if err != nil {
 		t.Fatalf("Bootstrap: %v", err)
 	}
@@ -142,7 +142,7 @@ outer:
 		env.TxCount, env.EventCount, env.KvCount, env.PublishedMsgCount, env.ChainId)
 
 	// Idempotent re-run: second Bootstrap publishes 0 new messages (dedup).
-	h2, total2, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket")
+	h2, total2, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket", nil)
 	if err != nil {
 		t.Fatalf("Bootstrap (2nd run): %v", err)
 	}
@@ -162,7 +162,7 @@ func TestBootstrapRespectsMaxHeight(t *testing.T) {
 	ctx := context.Background()
 
 	dir := filepath.Join("..", "..", "test", "fixtures", "v0_1_0")
-	heights, _, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 2, "pocket")
+	heights, _, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 2, "pocket", nil)
 	if err != nil {
 		t.Fatalf("Bootstrap: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestBootstrapErrorsOnMissingDataFile(t *testing.T) {
 		t.Fatalf("write meta: %v", err)
 	}
 
-	_, _, err = fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket")
+	_, _, err = fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket", nil)
 	if err == nil {
 		t.Fatal("Bootstrap: expected error for missing -data file, got nil")
 	}

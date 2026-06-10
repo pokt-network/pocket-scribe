@@ -100,7 +100,7 @@ func bootstrapHeights(t *testing.T, heights ...int64) {
 		copyFile(t, dataSrc, filepath.Join(dir, dataName))
 	}
 
-	heights2, msgs, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket")
+	heights2, msgs, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket", nil)
 	if err != nil {
 		t.Fatalf("fileplugin.Bootstrap: %v", err)
 	}

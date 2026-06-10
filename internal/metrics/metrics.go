@@ -35,3 +35,24 @@ func NewConsumer(reg prometheus.Registerer) *Consumer {
 		Buffered:     gauge("buffered_messages", "Fan-out messages buffered per consumer awaiting the block-boundary flush."),
 	}
 }
+
+// FilePlugin holds the metrics emitted by the fileplugin sidecar.
+type FilePlugin struct {
+	OversizeSoft    prometheus.Counter // payloads above the 256 KiB soft cap (still published)
+	OversizeRefused prometheus.Counter // payloads above the 1 MiB hard cap (refused)
+}
+
+// NewFilePlugin constructs and registers the sidecar metric set on reg.
+func NewFilePlugin(reg prometheus.Registerer) *FilePlugin {
+	counter := func(name, help string) prometheus.Counter {
+		c := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace, Subsystem: "fileplugin", Name: name, Help: help,
+		})
+		reg.MustRegister(c)
+		return c
+	}
+	return &FilePlugin{
+		OversizeSoft:    counter("oversize_soft_total", "Payloads above the 256 KiB soft cap (published anyway)."),
+		OversizeRefused: counter("oversize_refused_total", "Payloads above the 1 MiB hard cap (refused at the source)."),
+	}
+}
