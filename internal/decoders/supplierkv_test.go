@@ -39,3 +39,27 @@ func TestParseSCUPrimaryKey(t *testing.T) {
 		t.Fatal("want error on malformed key")
 	}
 }
+
+// TestParseSCUPrimaryKeyNoHeightSegment verifies that a key with a service
+// segment but no 8-byte height segment returns an error.
+func TestParseSCUPrimaryKeyNoHeightSegment(t *testing.T) {
+	// Only the service segment with trailing slash, no height bytes.
+	key := []byte("ServiceConfigUpdate/service_id/eth/short")
+	if _, _, _, err := ParseSCUPrimaryKey(key); err == nil {
+		t.Fatal("want error: no height segment (fewer than 9 bytes after service/)")
+	}
+}
+
+// TestParseSCUPrimaryKeyEmptyOperator verifies that a key with service and
+// height but an empty operator segment returns an error.
+func TestParseSCUPrimaryKeyEmptyOperator(t *testing.T) {
+	var hbuf [8]byte
+	binary.BigEndian.PutUint64(hbuf[:], 1000)
+	// service="eth", 8-byte height, trailing slash, then nothing after the slash
+	key := append([]byte("ServiceConfigUpdate/service_id/eth/"), hbuf[:]...)
+	key = append(key, '/') // trailing slash with empty operator
+	key = append(key, '/') // second slash to make j>0 branch produce empty string
+	if _, _, _, err := ParseSCUPrimaryKey(key); err == nil {
+		t.Fatal("want error: empty operator segment")
+	}
+}
