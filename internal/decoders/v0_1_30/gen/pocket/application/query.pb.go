@@ -285,17 +285,6 @@ func (m *QueryAllApplicationsResponse) GetPagination() *query.PageResponse {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*QueryParamsRequest)(nil), "pocket.application.QueryParamsRequest")
-	proto.RegisterType((*QueryParamsResponse)(nil), "pocket.application.QueryParamsResponse")
-	proto.RegisterType((*QueryGetApplicationRequest)(nil), "pocket.application.QueryGetApplicationRequest")
-	proto.RegisterType((*QueryGetApplicationResponse)(nil), "pocket.application.QueryGetApplicationResponse")
-	proto.RegisterType((*QueryAllApplicationsRequest)(nil), "pocket.application.QueryAllApplicationsRequest")
-	proto.RegisterType((*QueryAllApplicationsResponse)(nil), "pocket.application.QueryAllApplicationsResponse")
-}
-
-func init() { proto.RegisterFile("pocket/application/query.proto", fileDescriptor_8dcd97de3c5d7436) }
-
 var fileDescriptor_8dcd97de3c5d7436 = []byte{
 	// 662 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0x41, 0x6b, 0xd4, 0x40,

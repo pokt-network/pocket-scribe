@@ -65,3 +65,34 @@ func TestLoadMissingFile(t *testing.T) {
 		t.Fatal("expected error for missing file")
 	}
 }
+
+// TestValidate_AllMissingFields covers each required-field check in validate
+// independently, so the error-path branches all reach 100%.
+
+func TestValidate_MissingNetworkID(t *testing.T) {
+	_, err := Load("testdata/missing_network_id.yaml")
+	if err == nil {
+		t.Fatal("expected validation error for missing network.id")
+	}
+}
+
+func TestValidate_MissingGenesisDecoderVersion(t *testing.T) {
+	_, err := Load("testdata/missing_genesis_decoder_version.yaml")
+	if err == nil {
+		t.Fatal("expected validation error for missing genesis_decoder_version")
+	}
+}
+
+func TestValidate_ZeroGenesisHeight(t *testing.T) {
+	_, err := Load("testdata/zero_genesis_height.yaml")
+	if err == nil {
+		t.Fatal("expected validation error for genesis_height=0 (must be >= 1)")
+	}
+}
+
+func TestValidate_MissingRPC(t *testing.T) {
+	_, err := Load("testdata/missing_rpc.yaml")
+	if err == nil {
+		t.Fatal("expected validation error for empty endpoints.rpc")
+	}
+}

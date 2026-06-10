@@ -187,13 +187,6 @@ func (m *Session) GetSuppliers() []*shared.Supplier {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*SessionHeader)(nil), "pocket.session.SessionHeader")
-	proto.RegisterType((*Session)(nil), "pocket.session.Session")
-}
-
-func init() { proto.RegisterFile("pocket/session/types.proto", fileDescriptor_bab703d2ebb9acfb) }
-
 var fileDescriptor_bab703d2ebb9acfb = []byte{
 	// 554 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x5c, 0x93, 0x41, 0x8b, 0xd3, 0x40,

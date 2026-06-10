@@ -84,12 +84,6 @@ func (m *Gateway) GetUnstakeSessionEndHeight() uint64 {
 	return 0
 }
 
-func init() {
-	proto.RegisterType((*Gateway)(nil), "pocket.gateway.Gateway")
-}
-
-func init() { proto.RegisterFile("pocket/gateway/types.proto", fileDescriptor_ba65a578bc4f91b2) }
-
 var fileDescriptor_ba65a578bc4f91b2 = []byte{
 	// 388 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x54, 0x91, 0xbf, 0xaa, 0xdb, 0x30,

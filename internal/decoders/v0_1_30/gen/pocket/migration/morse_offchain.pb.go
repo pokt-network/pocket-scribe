@@ -595,24 +595,6 @@ func (m *MorseModuleAccount) GetName() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterType((*MorseStateExport)(nil), "pocket.migration.MorseStateExport")
-	proto.RegisterType((*MorseTendermintAppState)(nil), "pocket.migration.MorseTendermintAppState")
-	proto.RegisterType((*MorseApplications)(nil), "pocket.migration.MorseApplications")
-	proto.RegisterType((*MorseAuth)(nil), "pocket.migration.MorseAuth")
-	proto.RegisterType((*MorseAuthAccount)(nil), "pocket.migration.MorseAuthAccount")
-	proto.RegisterType((*MorsePos)(nil), "pocket.migration.MorsePos")
-	proto.RegisterType((*MorseApplication)(nil), "pocket.migration.MorseApplication")
-	proto.RegisterType((*MorseValidator)(nil), "pocket.migration.MorseValidator")
-	proto.RegisterType((*MorseAccount)(nil), "pocket.migration.MorseAccount")
-	proto.RegisterType((*MorsePublicKey)(nil), "pocket.migration.MorsePublicKey")
-	proto.RegisterType((*MorseModuleAccount)(nil), "pocket.migration.MorseModuleAccount")
-}
-
-func init() {
-	proto.RegisterFile("pocket/migration/morse_offchain.proto", fileDescriptor_d432b9bbab37e9d7)
-}
-
 var fileDescriptor_d432b9bbab37e9d7 = []byte{
 	// 1176 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x56, 0xcf, 0x8f, 0xdb, 0xc4,

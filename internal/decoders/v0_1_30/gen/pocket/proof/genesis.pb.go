@@ -82,12 +82,6 @@ func (m *GenesisState) GetProofList() []Proof {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*GenesisState)(nil), "pocket.proof.GenesisState")
-}
-
-func init() { proto.RegisterFile("pocket/proof/genesis.proto", fileDescriptor_122ebe05efef847b) }
-
 var fileDescriptor_122ebe05efef847b = []byte{
 	// 373 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x91, 0x41, 0x4b, 0xf3, 0x30,

@@ -97,12 +97,6 @@ func (m *EventRelayMiningDifficultyUpdated) GetNewNumRelaysEma() uint64 {
 	return 0
 }
 
-func init() {
-	proto.RegisterType((*EventRelayMiningDifficultyUpdated)(nil), "pocket.service.EventRelayMiningDifficultyUpdated")
-}
-
-func init() { proto.RegisterFile("pocket/service/event.proto", fileDescriptor_a38747b533ead694) }
-
 var fileDescriptor_a38747b533ead694 = []byte{
 	// 410 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x92, 0xc1, 0x6a, 0xd4, 0x40,

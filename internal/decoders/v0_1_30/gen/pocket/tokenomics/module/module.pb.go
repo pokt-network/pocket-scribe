@@ -67,14 +67,6 @@ func (m *Module) GetAuthority() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterType((*Module)(nil), "pocket.tokenomics.module.Module")
-}
-
-func init() {
-	proto.RegisterFile("pocket/tokenomics/module/module.proto", fileDescriptor_19a332b6aad9539f)
-}
-
 var fileDescriptor_19a332b6aad9539f = []byte{
 	// 334 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x91, 0xbf, 0x4a, 0x33, 0x41,

@@ -192,13 +192,6 @@ func (m *ServiceConfigUpdate) GetDeactivationHeight() int64 {
 	return 0
 }
 
-func init() {
-	proto.RegisterType((*Supplier)(nil), "pocket.shared.Supplier")
-	proto.RegisterType((*ServiceConfigUpdate)(nil), "pocket.shared.ServiceConfigUpdate")
-}
-
-func init() { proto.RegisterFile("pocket/shared/supplier.proto", fileDescriptor_fd9cf6b0d91d1e18) }
-
 var fileDescriptor_fd9cf6b0d91d1e18 = []byte{
 	// 557 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x53, 0x41, 0x6b, 0x13, 0x41,

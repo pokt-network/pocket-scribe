@@ -581,20 +581,6 @@ func (m *EventApplicationUnbondingCanceled) GetSessionEndHeight() int64 {
 	return 0
 }
 
-func init() {
-	proto.RegisterEnum("pocket.application.ApplicationUnbondingReason", ApplicationUnbondingReason_name, ApplicationUnbondingReason_value)
-	proto.RegisterType((*EventApplicationStaked)(nil), "pocket.application.EventApplicationStaked")
-	proto.RegisterType((*EventRedelegation)(nil), "pocket.application.EventRedelegation")
-	proto.RegisterType((*EventTransferBegin)(nil), "pocket.application.EventTransferBegin")
-	proto.RegisterType((*EventTransferEnd)(nil), "pocket.application.EventTransferEnd")
-	proto.RegisterType((*EventTransferError)(nil), "pocket.application.EventTransferError")
-	proto.RegisterType((*EventApplicationUnbondingBegin)(nil), "pocket.application.EventApplicationUnbondingBegin")
-	proto.RegisterType((*EventApplicationUnbondingEnd)(nil), "pocket.application.EventApplicationUnbondingEnd")
-	proto.RegisterType((*EventApplicationUnbondingCanceled)(nil), "pocket.application.EventApplicationUnbondingCanceled")
-}
-
-func init() { proto.RegisterFile("pocket/application/event.proto", fileDescriptor_44f5dfa8a062ea63) }
-
 var fileDescriptor_44f5dfa8a062ea63 = []byte{
 	// 779 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x96, 0x4d, 0x6b, 0xe3, 0x46,

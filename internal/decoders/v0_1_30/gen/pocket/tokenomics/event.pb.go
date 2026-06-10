@@ -703,19 +703,6 @@ func (m *EventApplicationReimbursementRequest) GetAmount() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterEnum("pocket.tokenomics.ClaimExpirationReason", ClaimExpirationReason_name, ClaimExpirationReason_value)
-	proto.RegisterType((*EventClaimExpired)(nil), "pocket.tokenomics.EventClaimExpired")
-	proto.RegisterType((*EventClaimSettled)(nil), "pocket.tokenomics.EventClaimSettled")
-	proto.RegisterMapType((map[string]string)(nil), "pocket.tokenomics.EventClaimSettled.RewardDistributionEntry")
-	proto.RegisterType((*EventApplicationOverserviced)(nil), "pocket.tokenomics.EventApplicationOverserviced")
-	proto.RegisterType((*EventSupplierSlashed)(nil), "pocket.tokenomics.EventSupplierSlashed")
-	proto.RegisterType((*EventClaimDiscarded)(nil), "pocket.tokenomics.EventClaimDiscarded")
-	proto.RegisterType((*EventApplicationReimbursementRequest)(nil), "pocket.tokenomics.EventApplicationReimbursementRequest")
-}
-
-func init() { proto.RegisterFile("pocket/tokenomics/event.proto", fileDescriptor_146818b9f891ddf6) }
-
 var fileDescriptor_146818b9f891ddf6 = []byte{
 	// 1156 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x57, 0xcf, 0x6f, 0x1b, 0xc5,

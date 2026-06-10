@@ -430,16 +430,6 @@ func (m *EventMorseAccountRecovered) GetMorseSrcAddress() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterType((*EventImportMorseClaimableAccounts)(nil), "pocket.migration.EventImportMorseClaimableAccounts")
-	proto.RegisterType((*EventMorseAccountClaimed)(nil), "pocket.migration.EventMorseAccountClaimed")
-	proto.RegisterType((*EventMorseApplicationClaimed)(nil), "pocket.migration.EventMorseApplicationClaimed")
-	proto.RegisterType((*EventMorseSupplierClaimed)(nil), "pocket.migration.EventMorseSupplierClaimed")
-	proto.RegisterType((*EventMorseAccountRecovered)(nil), "pocket.migration.EventMorseAccountRecovered")
-}
-
-func init() { proto.RegisterFile("pocket/migration/event.proto", fileDescriptor_58efe7e8c8e55703) }
-
 var fileDescriptor_58efe7e8c8e55703 = []byte{
 	// 895 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x56, 0xcf, 0x6e, 0xe3, 0x44,

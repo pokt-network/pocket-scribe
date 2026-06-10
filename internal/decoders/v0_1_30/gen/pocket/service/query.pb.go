@@ -466,21 +466,6 @@ func (m *QueryAllRelayMiningDifficultyResponse) GetPagination() *query.PageRespo
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*QueryParamsRequest)(nil), "pocket.service.QueryParamsRequest")
-	proto.RegisterType((*QueryParamsResponse)(nil), "pocket.service.QueryParamsResponse")
-	proto.RegisterType((*QueryGetServiceRequest)(nil), "pocket.service.QueryGetServiceRequest")
-	proto.RegisterType((*QueryGetServiceResponse)(nil), "pocket.service.QueryGetServiceResponse")
-	proto.RegisterType((*QueryAllServicesRequest)(nil), "pocket.service.QueryAllServicesRequest")
-	proto.RegisterType((*QueryAllServicesResponse)(nil), "pocket.service.QueryAllServicesResponse")
-	proto.RegisterType((*QueryGetRelayMiningDifficultyRequest)(nil), "pocket.service.QueryGetRelayMiningDifficultyRequest")
-	proto.RegisterType((*QueryGetRelayMiningDifficultyResponse)(nil), "pocket.service.QueryGetRelayMiningDifficultyResponse")
-	proto.RegisterType((*QueryAllRelayMiningDifficultyRequest)(nil), "pocket.service.QueryAllRelayMiningDifficultyRequest")
-	proto.RegisterType((*QueryAllRelayMiningDifficultyResponse)(nil), "pocket.service.QueryAllRelayMiningDifficultyResponse")
-}
-
-func init() { proto.RegisterFile("pocket/service/query.proto", fileDescriptor_130d2b2fe7ae3275) }
-
 var fileDescriptor_130d2b2fe7ae3275 = []byte{
 	// 809 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0xcf, 0x4b, 0x1c, 0x49,

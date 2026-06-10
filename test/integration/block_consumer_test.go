@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,10 +18,9 @@ import (
 
 	runtime "github.com/pokt-network/pocketscribe/internal/consumer"
 	blockhandler "github.com/pokt-network/pocketscribe/internal/consumer/block"
+	"github.com/pokt-network/pocketscribe/internal/fileplugin"
 	pslog "github.com/pokt-network/pocketscribe/internal/log"
 	"github.com/pokt-network/pocketscribe/internal/metrics"
-	natsx "github.com/pokt-network/pocketscribe/internal/nats"
-	"github.com/pokt-network/pocketscribe/internal/router"
 	"github.com/pokt-network/pocketscribe/internal/store"
 	"github.com/pokt-network/pocketscribe/internal/types"
 )
@@ -35,7 +35,7 @@ func (blockStoreInserter) InsertBlock(ctx context.Context, tx pgx.Tx, h *types.B
 // startBlockRuntime mirrors startRuntime but wires the block handler instead of NoOp.
 // Each runtime gets its own prometheus.Registry to avoid MustRegister panics when
 // multiple runtimes run in the same test process.
-func startBlockRuntime(t *testing.T, stream jetstream.Stream, name string, rtr blockhandler.Router) *runtimeHandle {
+func startBlockRuntime(t *testing.T, stream jetstream.Stream, name string) *runtimeHandle { //nolint:unparam // name is always "block" by design; keeping param for structural parity with startRuntime
 	t.Helper()
 	s, err := store.New(context.Background(), pg.DSN)
 	if err != nil {
@@ -43,7 +43,7 @@ func startBlockRuntime(t *testing.T, stream jetstream.Stream, name string, rtr b
 	}
 	cons := durableConsumer(t, stream, name, 2*time.Second)
 	m := metrics.NewConsumer(prometheus.NewRegistry())
-	h := blockhandler.New(rtr, blockStoreInserter{})
+	h := blockhandler.New(blockStoreInserter{})
 	rt := runtime.NewRuntime(runtime.Config{
 		Handler:  h,
 		Store:    s,
@@ -61,16 +61,61 @@ func startBlockRuntime(t *testing.T, stream jetstream.Stream, name string, rtr b
 	return rh
 }
 
-// publishFixture publishes metaBytes to pokt.block.{H} with the canonical Nats-Msg-Id.
-// stream is accepted to signal the fixture is published to an active stream, but
-// actual publishing uses the shared JetStream context (same as publishHeights).
-func publishFixture(t *testing.T, _ jetstream.Stream, h int64, metaBytes []byte) {
+// bootstrapHeights copies the block-{H}-{meta,data} fixture pairs for the
+// given heights into a temp dir and runs fileplugin.Bootstrap against it.
+// It searches all fixture subdirectories for the files. Any error is fatal.
+func bootstrapHeights(t *testing.T, heights ...int64) {
 	t.Helper()
 	ctx := context.Background()
-	subj := natsx.BlockSubject(h)
-	id := natsx.MsgID(subj, h, 0)
-	if _, err := nats.Client.JetStream().Publish(ctx, subj, metaBytes, jetstream.WithMsgID(id)); err != nil {
-		t.Fatalf("publishFixture height %d: %v", h, err)
+	dir := t.TempDir()
+
+	fixtureBase := filepath.Join("..", "..", "test", "fixtures")
+	for _, h := range heights {
+		hStr := int64str(h)
+		metaName := "block-" + hStr + "-meta"
+		dataName := "block-" + hStr + "-data"
+
+		// Search fixture subdirectories for the height's files.
+		var metaSrc, dataSrc string
+		entries, err := os.ReadDir(fixtureBase)
+		if err != nil {
+			t.Fatalf("read fixtures dir: %v", err)
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			candidate := filepath.Join(fixtureBase, e.Name(), metaName)
+			if _, err := os.Stat(candidate); err == nil {
+				metaSrc = candidate
+				dataSrc = filepath.Join(fixtureBase, e.Name(), dataName)
+				break
+			}
+		}
+		if metaSrc == "" {
+			t.Fatalf("bootstrapHeights: no fixture found for height %d", h)
+		}
+
+		copyFile(t, metaSrc, filepath.Join(dir, metaName))
+		copyFile(t, dataSrc, filepath.Join(dir, dataName))
+	}
+
+	heights2, msgs, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket")
+	if err != nil {
+		t.Fatalf("fileplugin.Bootstrap: %v", err)
+	}
+	t.Logf("bootstrapHeights: %d heights, %d messages", heights2, msgs)
+}
+
+// copyFile copies src → dst; fatal on any error.
+func copyFile(t *testing.T, src, dst string) {
+	t.Helper()
+	data, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("copyFile read %s: %v", src, err)
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		t.Fatalf("copyFile write %s: %v", dst, err)
 	}
 }
 
@@ -126,41 +171,23 @@ func TestBlockConsumerRowCorrectness(t *testing.T) { // spec test 16a
 	pg.Reset(t)
 	stream := freshStream(t)
 
-	// Static router: 5 boundary upgrades + DefaultRegistry (includes all 6 versions).
-	rtr, err := router.NewStaticRouter([]router.Upgrade{
-		{Name: "v0.1.10", AppliedAtHeight: 78683, DecoderVersion: "v0_1_10"},
-		{Name: "v0.1.20", AppliedAtHeight: 135297, DecoderVersion: "v0_1_20"},
-		{Name: "v0.1.28", AppliedAtHeight: 287932, DecoderVersion: "v0_1_28"},
-		{Name: "v0.1.29", AppliedAtHeight: 382250, DecoderVersion: "v0_1_29"},
-	}, router.DefaultRegistry(), "v0_1_0")
-	if err != nil {
-		t.Fatalf("build router: %v", err)
-	}
-
-	bh := startBlockRuntime(t, stream, "block", rtr)
+	bh := startBlockRuntime(t, stream, "block")
 
 	// Fixtures: one per version boundary (v0_1_0@1, v0_1_10@78683, v0_1_20@135297, v0_1_28@287932, v0_1_29@382250).
 	type fixtureCase struct {
-		vdir         string
 		height       int64
 		expectedPath string
-		metaPath     string
 	}
 	cases := []fixtureCase{
-		{"v0_1_0", 1, "../../test/fixtures/v0_1_0/block-1-expected.json", "../../test/fixtures/v0_1_0/block-1-meta"},
-		{"v0_1_10", 78683, "../../test/fixtures/v0_1_10/block-78683-expected.json", "../../test/fixtures/v0_1_10/block-78683-meta"},
-		{"v0_1_20", 135297, "../../test/fixtures/v0_1_20/block-135297-expected.json", "../../test/fixtures/v0_1_20/block-135297-meta"},
-		{"v0_1_28", 287932, "../../test/fixtures/v0_1_28/block-287932-expected.json", "../../test/fixtures/v0_1_28/block-287932-meta"},
-		{"v0_1_29", 382250, "../../test/fixtures/v0_1_29/block-382250-expected.json", "../../test/fixtures/v0_1_29/block-382250-meta"},
+		{1, "../../test/fixtures/v0_1_0/block-1-expected.json"},
+		{78683, "../../test/fixtures/v0_1_10/block-78683-expected.json"},
+		{135297, "../../test/fixtures/v0_1_20/block-135297-expected.json"},
+		{287932, "../../test/fixtures/v0_1_28/block-287932-expected.json"},
+		{382250, "../../test/fixtures/v0_1_29/block-382250-expected.json"},
 	}
 
-	for _, tc := range cases {
-		raw, err := os.ReadFile(tc.metaPath)
-		if err != nil {
-			t.Fatalf("read meta %s: %v", tc.metaPath, err)
-		}
-		publishFixture(t, stream, tc.height, raw)
-	}
+	// Bootstrap all heights via the real fan-out pipeline.
+	bootstrapHeights(t, 1, 78683, 135297, 287932, 382250)
 
 	for _, tc := range cases {
 		want := loadExpected(t, tc.expectedPath)
@@ -196,24 +223,11 @@ func TestBlockConsumerANDSeal(t *testing.T) { // spec test 16b
 	pg.Reset(t)
 	stream := freshStream(t)
 
-	// Genesis-only router (no upgrades needed for v0.1.0 blocks 1-3).
-	rtr, err := router.NewStaticRouter(nil, router.DefaultRegistry(), "v0_1_0")
-	if err != nil {
-		t.Fatalf("build router: %v", err)
-	}
-
-	blockRH := startBlockRuntime(t, stream, "block", rtr)
+	blockRH := startBlockRuntime(t, stream, "block")
 	noopRH := startRuntime(t, stream, "noop-a")
 
-	// Publish 3 contiguous real v0.1.0 block fixtures.
-	for _, h := range []int64{1, 2, 3} {
-		metaPath := "../../test/fixtures/v0_1_0/block-" + int64str(h) + "-meta"
-		raw, err := os.ReadFile(metaPath)
-		if err != nil {
-			t.Fatalf("read meta height %d: %v", h, err)
-		}
-		publishFixture(t, stream, h, raw)
-	}
+	// Bootstrap 3 contiguous real v0.1.0 block fixtures via the real pipeline.
+	bootstrapHeights(t, 1, 2, 3)
 
 	// Wait for both cursors to reach 3.
 	waitCursor(t, blockRH.store, "block", 3, 15*time.Second)
@@ -223,33 +237,18 @@ func TestBlockConsumerANDSeal(t *testing.T) { // spec test 16b
 	assertSealed(t, blockRH.store, 3, true)
 }
 
-// Test 17: self-heal — publish heights 1 and 3, assert gap freeze, then fill gap
-// with height 2 and assert cursor advances to 3 with all 3 block rows present.
+// Test 17: self-heal — bootstrap heights 1 and 3 first (gap at 2), assert
+// the cursor freezes at 1, then bootstrap height 2 and assert recovery to 3
+// with all 3 block rows present. Dedup makes re-publishing heights 1 and 3
+// safe.
 func TestBlockConsumerSelfHealGap(t *testing.T) { // spec test 17
 	pg.Reset(t)
 	stream := freshStream(t)
 
-	rtr, err := router.NewStaticRouter(nil, router.DefaultRegistry(), "v0_1_0")
-	if err != nil {
-		t.Fatalf("build router: %v", err)
-	}
+	bh := startBlockRuntime(t, stream, "block")
 
-	bh := startBlockRuntime(t, stream, "block", rtr)
-
-	// Read meta bytes for heights 1, 2, 3.
-	readMeta := func(h int64) []byte {
-		t.Helper()
-		path := "../../test/fixtures/v0_1_0/block-" + int64str(h) + "-meta"
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read meta height %d: %v", h, err)
-		}
-		return data
-	}
-
-	// Publish 1 and 3 — height 2 is missing (gap).
-	publishFixture(t, stream, 1, readMeta(1))
-	publishFixture(t, stream, 3, readMeta(3))
+	// Bootstrap heights 1 and 3 — height 2 is missing (gap).
+	bootstrapHeights(t, 1, 3)
 
 	// Wait for cursor to advance to 1 (height 1 processed and consolidated).
 	waitCursor(t, bh.store, "block", 1, 10*time.Second)
@@ -262,8 +261,8 @@ func TestBlockConsumerSelfHealGap(t *testing.T) { // spec test 17
 		t.Fatalf("cursor = %d, want frozen at 1 (gap at height 2)", cur)
 	}
 
-	// Fill the gap.
-	publishFixture(t, stream, 2, readMeta(2))
+	// Fill the gap: bootstrap height 2 (dedup absorbs 1 and 3 if they re-appear).
+	bootstrapHeights(t, 2)
 
 	// Cursor must now advance to 3.
 	waitCursor(t, bh.store, "block", 3, 15*time.Second)

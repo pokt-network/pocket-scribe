@@ -74,12 +74,6 @@ func (m *GenesisState) GetApplicationList() []Application {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*GenesisState)(nil), "pocket.application.GenesisState")
-}
-
-func init() { proto.RegisterFile("pocket/application/genesis.proto", fileDescriptor_858af0157edc259d) }
-
 var fileDescriptor_858af0157edc259d = []byte{
 	// 363 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x52, 0x28, 0xc8, 0x4f, 0xce,

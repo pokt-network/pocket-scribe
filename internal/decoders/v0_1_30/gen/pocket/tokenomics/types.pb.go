@@ -381,16 +381,6 @@ func (m *ModToModTransfer) GetCoin() types.Coin {
 	return types.Coin{}
 }
 
-func init() {
-	proto.RegisterEnum("pocket.tokenomics.SettlementOpReason", SettlementOpReason_name, SettlementOpReason_value)
-	proto.RegisterType((*ClaimSettlementResult)(nil), "pocket.tokenomics.ClaimSettlementResult")
-	proto.RegisterType((*MintBurnOp)(nil), "pocket.tokenomics.MintBurnOp")
-	proto.RegisterType((*ModToAcctTransfer)(nil), "pocket.tokenomics.ModToAcctTransfer")
-	proto.RegisterType((*ModToModTransfer)(nil), "pocket.tokenomics.ModToModTransfer")
-}
-
-func init() { proto.RegisterFile("pocket/tokenomics/types.proto", fileDescriptor_b6778ad94f878cfb) }
-
 var fileDescriptor_b6778ad94f878cfb = []byte{
 	// 1084 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x96, 0x4f, 0x6f, 0xe3, 0xc4,

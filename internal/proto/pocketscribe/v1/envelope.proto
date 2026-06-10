@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package pocketscribe.v1;
+
+option go_package = "github.com/pokt-network/pocketscribe/internal/proto/gen/pocketscribe/v1";
+
+// BlockEnvelope is the metadata-only per-height message on pokt.block.{H}
+// (ADR-022 rule 3: never the transactional body). The sidecar publishes it
+// AFTER every fan-out message for H — consumers use it as the per-height
+// completeness fence (ADR-024 ordering contract).
+message BlockEnvelope {
+  int64  height              = 1;
+  // Consensus header time as unix nanos (invariant #1 source; decoded by the
+  // sidecar from RequestFinalizeBlock via the shared version-invariant
+  // decoders.DecodeBlockHeader — no router involved).
+  int64  time_unix_nano      = 2;
+  string hash                = 3; // hex lowercase
+  string proposer_address    = 4; // hex lowercase
+  // chain_id comes from the sidecar's network config YAML — it is NOT in the
+  // per-block ABCI header (Phase C finding).
+  string chain_id            = 5;
+  int32  tx_count            = 6;
+  int32  event_count         = 7; // block-level + per-tx events
+  int32  kv_count            = 8;
+  // Total fan-out messages published for this height EXCLUDING this envelope
+  // (ADR-025 defense-in-depth metadata; not chain data).
+  int32  published_msg_count = 9;
+}
+
+// TxWithResult is one transaction on pokt.tx.{H}.{idx} (ADR-022): the raw tx
+// bytes and its ABCI execution result, both exactly as captured by FilePlugin.
+message TxWithResult {
+  bytes tx     = 1; // cosmos.tx.v1beta1.Tx wire bytes (RequestFinalizeBlock.txs[idx])
+  bytes result = 2; // cometbft abci.ExecTxResult wire bytes (ResponseFinalizeBlock.tx_results[idx])
+}
+
+// EventInBlock is one ABCI event on pokt.events.{type}.{H}, with the position
+// metadata the deterministic row PKs need (tables key on tx_index/event_index).
+message EventInBlock {
+  bytes event       = 1; // cometbft abci.Event wire bytes
+  int32 tx_index    = 2; // -1 for block-level (ResponseFinalizeBlock.events)
+  int32 event_index = 3; // ordinal within its scope (block-level set or its tx)
+}

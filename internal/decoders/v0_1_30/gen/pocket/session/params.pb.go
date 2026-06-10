@@ -67,12 +67,6 @@ func (m *Params) GetNumSuppliersPerSession() uint64 {
 	return 0
 }
 
-func init() {
-	proto.RegisterType((*Params)(nil), "pocket.session.Params")
-}
-
-func init() { proto.RegisterFile("pocket/session/params.proto", fileDescriptor_867b17065b766436) }
-
 var fileDescriptor_867b17065b766436 = []byte{
 	// 346 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x92, 0x2e, 0xc8, 0x4f, 0xce,

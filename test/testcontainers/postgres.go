@@ -65,14 +65,19 @@ func StartPostgres(ctx context.Context, extra ...testcontainers.ContainerCustomi
 	return &PG{DSN: dsn, Pool: pool, Container: c}, nil
 }
 
-// Reset truncates the Phase B coordination tables and Phase D data tables so a
-// test starts clean without re-applying migrations.
+// Reset truncates the Phase B coordination tables, Phase D data tables, and
+// Phase E supplier tables so a test starts clean without re-applying migrations.
 func (pg *PG) Reset(t *testing.T) {
 	t.Helper()
 	_, err := pg.Pool.Exec(context.Background(),
-		`TRUNCATE consumer_registry, consumer_consolidation, processed_heights, block, upgrades RESTART IDENTITY`)
+		`TRUNCATE consumer_registry, consumer_consolidation, processed_heights, block, upgrades,
+		 msg_stake_supplier, msg_unstake_supplier,
+		 event_supplier_staked, event_supplier_unbonding_begin, event_supplier_unbonding_canceled,
+		 event_supplier_unbonding_end, event_supplier_service_config_activated,
+		 supplier_history, supplier_service_config_update_history
+		 RESTART IDENTITY`)
 	if err != nil {
-		t.Fatalf("reset coordination tables: %v", err)
+		t.Fatalf("reset tables: %v", err)
 	}
 }
 

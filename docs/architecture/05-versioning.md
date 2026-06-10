@@ -44,8 +44,7 @@ internal/decoders/
 └── v0_1_6/
 
 internal/router/
-├── router.go        # height → decoder
-└── upgrades.go      # hardcoded + DB-backed upgrade table
+└── router.go        # height → decoder
 ```
 
 ## The `Decoder` interface
@@ -111,7 +110,7 @@ type Router interface {
 
 **`DefaultRegistry`** (`internal/router/registry.go`) maps canonical version strings to their stateless `Decoder` implementations. Adding a new decoder version means adding one entry here.
 
-**Lenient fallback:** unregistered intermediate versions (e.g. `v0_1_31` whose decoder ships in a later phase) fall back silently to the nearest earlier registered version. This is correct for the version-invariant block header; later phases (tx/state/event decoders) must use a strict variant that requires every version in the table to be registered.
+**Lenient fallback + shape-complete registry:** unregistered intermediate versions (e.g. `v0_1_31` whose decoder ships in a later phase) fall back silently to the nearest earlier registered version. The lenient router is THE router — there is no strict variant. Registry completeness is enforced mechanically: `TestSupplierShapeGuard` (`internal/router/shapeguard_test.go`) BFS-expands the supplier protobuf closure across all `.shapes/` snapshots, detects every version where the closure changes (a "break version"), and fails CI if any break version lacks a `DefaultRegistry()` entry. This makes adding a shape-range decoder package the only way to restore green CI after onboarding a version that introduces supplier protobuf breaks — no human judgment required.
 
 ## The upgrades table
 
@@ -133,20 +132,36 @@ CREATE TABLE upgrades (
 
 ## Onboarding a new version
 
-Use `/generate-decoder vX.Y.Z`. The flow:
+Use `/add-decoder-version`. The flow:
 
 1. Clone `pokt-network/poktroll` at the tag.
-2. Copy protos to `third_party/proto/poktroll/vX_Y_Z/`.
-3. Run `buf generate` to produce Go types in `internal/decoders/vX_Y_Z/gen/`.
-4. Run `buf breaking` against the previous version → if breaks, write an ADR.
-5. Implement `internal/decoders/vX_Y_Z/decoder.go` mapping proto types → canonical types.
-6. Add to the router's upgrade table.
-7. Capture golden test fixtures from a node running this version.
-8. Add cross-version test asserting canonical equivalence.
-9. Add to CI matrix.
-10. Update this doc with the new version.
+2. Copy the `pocket/` subtree to `third_party/proto/poktroll/vX_Y_Z/`. Delete any
+   `buf.yaml` / `buf.lock` that came with the vendored tree — old trees contain
+   upstream v1 buf config that must not leak into the ephemeral workspace.
+3. Check for breaking changes (two-workspace recipe): run `buf breaking` using
+   `breaking: use: [WIRE]` in an ephemeral workspace against the previous version.
+   If breaks exist, write an ADR; determine whether the supplier-closure BFS is
+   affected (see `docs/research/supplier-shape-breaks.md`).
+4. Generate Go types via the ephemeral workspace script: `bash scripts/gen_decoder_protos.sh vX_Y_Z`.
+   The script builds an isolated `/tmp/bufws-*` workspace symlinking ONLY `pocket/`
+   from the vendored tree plus shared cosmos-sdk + WKT trees — no `buf.yaml`
+   change to the root workspace is needed. Strip global registrations (automatic
+   via `make gen-proto`): `go run ./tools/stripregister internal/decoders/vX_Y_Z/gen`.
+5. Implement `internal/decoders/vX_Y_Z/decoder.go`. If this version **starts a new
+   supplier shape range** (i.e. `TestSupplierShapeGuard` would fail without it),
+   implement the full supplier decode methods here and append the version to
+   `DECODER_GEN_VERSIONS` in the Makefile; otherwise write a thin delegating
+   adapter pointing at the range-start package.
+6. Register in `internal/router/registry.go` (`DefaultRegistry()` map). The
+   shape-guard test will fail CI if a supplier-closure break version is missing.
+7. If the new version adds enum values, update `internal/decoders/enums.go`
+   imports to pick up the latest enum maps.
+8. Capture golden test fixtures; add golden tests covering each implemented
+   `Decode*` method (100% coverage mandate on decoder paths).
+9. Add to `ps sync-upgrades` data; write the upgrade migration SQL.
+10. Update this doc's "Known versions" table.
 
-Detailed steps: `.claude/agents/pocketscribe-proto-versioner.md`.
+Detailed steps: `.claude/skills/add-decoder-version/SKILL.md`.
 
 ## Handling additive vs breaking changes
 
@@ -256,37 +271,26 @@ jobs:
 
 ## Buf configuration
 
+The root `buf.yaml` holds ONLY modules that share a single workspace (our envelope
+protos, one shared cosmos-sdk tree, WKT). Each poktroll version is generated in an
+**ephemeral workspace** via `scripts/gen_decoder_protos.sh <vX_Y_Z>` (see that
+script for the full recipe). This avoids the buf v2 constraint that bans having two
+poktroll trees in one workspace (`pocket/application/event.proto is contained in
+multiple modules`).
+
 ```yaml
-# buf.yaml
+# buf.yaml (root) — Phase E state
 version: v2
 modules:
   - path: internal/proto
-    name: github.com/pokt-network/pocketscribe/internal/proto
-  - path: third_party/proto/poktroll/v0_0_10
-  - path: third_party/proto/poktroll/v0_0_12
-  - path: third_party/proto/poktroll/v0_1_0
-  - path: third_party/proto/poktroll/v0_1_5
-  - path: third_party/proto/cosmos-sdk/v0.53
-lint:
-  use:
-    - STANDARD
-breaking:
-  use:
-    - WIRE
+  - path: third_party/proto/cosmos-sdk/v0_53_0
+  - path: third_party/proto/wkt
 ```
 
-```yaml
-# buf.gen.yaml — one per version (or use generated configs)
-version: v2
-inputs:
-  - directory: third_party/proto/poktroll/v0_1_5
-plugins:
-  - remote: buf.build/protocolbuffers/go
-    out: internal/decoders/v0_1_5/gen
-    opt:
-      - paths=source_relative
-      - "Mpoktroll/...=github.com/pokt-network/pocketscribe/internal/decoders/v0_1_5/gen/poktroll/..."
-```
+The per-version generate template is `buf.gen.poktroll-v0_1_30.yaml`; the ephemeral
+workspace script `sed`-substitutes `v0_1_30` → `<NEW_VERSION>` at generation time so
+no new template file is needed. The `out:` path is rewritten to an absolute path
+pointing at `internal/decoders/<vX_Y_Z>/gen/`.
 
 ## Documentation discipline
 
@@ -295,7 +299,7 @@ When a new version is onboarded:
 1. Update this doc's "Known versions" table.
 2. If breaking: write `docs/decisions/ADR-NNN-poktroll-vX.Y.Z-breaks.md` documenting each break.
 3. Update CI matrix.
-4. Update `internal/router/upgrades.go` and the migration recording the upgrade.
+4. Add the upgrade migration SQL under `schema/migrations/` and run `ps sync-upgrades` to populate the `upgrades` table.
 
 ## Known versions
 

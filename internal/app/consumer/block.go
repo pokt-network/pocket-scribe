@@ -12,12 +12,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
-	"github.com/pokt-network/pocketscribe/internal/config"
 	runtime "github.com/pokt-network/pocketscribe/internal/consumer"
 	blockhandler "github.com/pokt-network/pocketscribe/internal/consumer/block"
 	"github.com/pokt-network/pocketscribe/internal/metrics"
 	natsx "github.com/pokt-network/pocketscribe/internal/nats"
-	"github.com/pokt-network/pocketscribe/internal/router"
 	"github.com/pokt-network/pocketscribe/internal/store"
 	"github.com/pokt-network/pocketscribe/internal/types"
 )
@@ -34,21 +32,15 @@ func (storeInserter) InsertBlock(ctx context.Context, tx pgx.Tx, h *types.BlockH
 
 func newBlockCmd() *cobra.Command {
 	var (
-		cfgPath string
 		dsn     string
 		natsURL string
 	)
 	cmd := &cobra.Command{
 		Use:   "block",
-		Short: "Run the block consumer (decodes block headers, writes block table)",
+		Short: "Run the block consumer (reads BlockEnvelope, writes block table)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-
-			cfg, err := config.Load(cfgPath)
-			if err != nil {
-				return fmt.Errorf("load config: %w", err)
-			}
 
 			st, err := store.New(ctx, dsn)
 			if err != nil {
@@ -79,12 +71,7 @@ func newBlockCmd() *cobra.Command {
 				return fmt.Errorf("create consumer: %w", err)
 			}
 
-			rtr, err := router.NewDBRouter(ctx, st, router.DefaultRegistry(), cfg.Network.GenesisDecoderVersion)
-			if err != nil {
-				return fmt.Errorf("build router: %w", err)
-			}
-
-			h := blockhandler.New(rtr, storeInserter{})
+			h := blockhandler.New(storeInserter{})
 			rt := runtime.NewRuntime(runtime.Config{
 				Handler:  h,
 				Store:    st,
@@ -95,8 +82,6 @@ func newBlockCmd() *cobra.Command {
 			return rt.Run(ctx)
 		},
 	}
-	cmd.Flags().StringVar(&cfgPath, "config", "", "path to network config YAML (required)")
-	_ = cmd.MarkFlagRequired("config")
 	cmd.Flags().StringVar(&dsn, "dsn", envOr("PS_DATABASE_DSN", defaultDSN),
 		"Postgres DSN (libpq keyword or URL); overrides $PS_DATABASE_DSN")
 	cmd.Flags().StringVar(&natsURL, "nats-url", envOr("PS_NATS_URL", "nats://localhost:4222"),

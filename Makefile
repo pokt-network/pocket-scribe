@@ -49,17 +49,23 @@ tools-proto: ## Install pinned buf + protoc-gen-gocosmos into GOPATH/bin
 	@go install github.com/cosmos/gogoproto/protoc-gen-gocosmos@$(GOGOPROTO_VERSION)
 	@echo "Installed buf $(BUF_VERSION) + protoc-gen-gocosmos $(GOGOPROTO_VERSION) into $(PROTO_BIN)"
 
-gen-proto: tools-proto ## Generate Go decoder bindings for v0_1_30 from vendored protos (offline)
-	@PATH="$(PROTO_BIN):$$PATH" buf generate \
-	  --template buf.gen.poktroll-v0_1_30.yaml \
-	  third_party/proto/poktroll/v0_1_30
-	@echo "Generated internal/decoders/v0_1_30/gen/"
+# Versions that own a generated tree (shape-range representatives + v0_1_30,
+# which Phase C committed; range map: docs/research/supplier-shape-breaks.md).
+DECODER_GEN_VERSIONS := v0_1_0 v0_1_8 v0_1_27 v0_1_30
 
-gen-check: ## Verify committed generated code matches the protos (regenerate + diff)
+gen-proto: tools-proto ## Generate decoder bindings (offline, ephemeral buf workspaces) + envelope, then strip global registrations
+	@for v in $(DECODER_GEN_VERSIONS); do \
+	  bash scripts/gen_decoder_protos.sh $$v || exit 1; \
+	done
+	@PATH="$(PROTO_BIN):$$PATH" buf generate --template buf.gen.envelope.yaml internal/proto
+	@go run ./tools/stripregister $(foreach v,$(DECODER_GEN_VERSIONS),internal/decoders/$(v)/gen)
+	@echo "Generated + stripped: $(DECODER_GEN_VERSIONS) and internal/proto/gen/"
+
+gen-check: ## Verify committed generated code matches the protos (regenerate + strip + diff)
 	@$(MAKE) gen-proto >/dev/null
-	@if ! git diff --quiet -- internal/decoders/v0_1_30/gen; then \
+	@if ! git diff --quiet -- $(foreach v,$(DECODER_GEN_VERSIONS),internal/decoders/$(v)/gen) internal/proto/gen; then \
 	  echo "generated code is stale; run 'make gen-proto' and commit the result:"; \
-	  git --no-pager diff --stat -- internal/decoders/v0_1_30/gen; \
+	  git --no-pager diff --stat -- internal/decoders/*/gen internal/proto/gen; \
 	  exit 1; \
 	fi
 	@echo "generated code up to date."
@@ -95,7 +101,7 @@ vet: ## go vet on the whole module
 	@go vet ./...
 
 fmt-check: ## Verify gofmt is clean
-	@unformatted=$$(gofmt -l . | grep -v '^vendor/' | grep -v '^third_party/'); \
+	@unformatted=$$(gofmt -l . | grep -v '^vendor/' | grep -v '^third_party/' | grep -v '^\.claude/'); \
 	if [ -n "$$unformatted" ]; then \
 	  echo "gofmt -w needed for these files:"; \
 	  echo "$$unformatted"; \

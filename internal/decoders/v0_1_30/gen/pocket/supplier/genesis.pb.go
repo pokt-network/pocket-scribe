@@ -75,12 +75,6 @@ func (m *GenesisState) GetSupplierList() []shared.Supplier {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*GenesisState)(nil), "pocket.supplier.GenesisState")
-}
-
-func init() { proto.RegisterFile("pocket/supplier/genesis.proto", fileDescriptor_ecf6bad8548ed19e) }
-
 var fileDescriptor_ecf6bad8548ed19e = []byte{
 	// 351 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x92, 0x2d, 0xc8, 0x4f, 0xce,

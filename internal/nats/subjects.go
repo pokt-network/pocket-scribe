@@ -48,3 +48,114 @@ func HeightFromBlockSubject(subject string) (int64, error) {
 func MsgID(subject string, height int64, index int) string {
 	return fmt.Sprintf("%s|%d|%d", subject, height, index)
 }
+
+// ── tx fan-out (ADR-022: pokt.tx.{H}.{idx}, one tx per message) ─────────────
+
+// TxSubjectFilter matches every per-tx message regardless of height/index.
+const TxSubjectFilter = "pokt.tx.>"
+
+const txPrefix = "pokt.tx."
+
+// TxSubject returns the subject for tx index idx of height h.
+func TxSubject(h int64, idx int) string {
+	return txPrefix + strconv.FormatInt(h, 10) + "." + strconv.Itoa(idx)
+}
+
+// HeightFromTxSubject parses pokt.tx.{H}.{idx}.
+func HeightFromTxSubject(subject string) (int64, int, error) {
+	if !strings.HasPrefix(subject, txPrefix) {
+		return 0, 0, fmt.Errorf("not a tx subject: %q", subject)
+	}
+	rest := strings.Split(subject[len(txPrefix):], ".")
+	if len(rest) != 2 {
+		return 0, 0, fmt.Errorf("malformed tx subject: %q", subject)
+	}
+	h, err := strconv.ParseInt(rest[0], 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse height from %q: %w", subject, err)
+	}
+	idx, err := strconv.Atoi(rest[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse tx index from %q: %w", subject, err)
+	}
+	return h, idx, nil
+}
+
+// ── event fan-out (ADR-022: pokt.events.{eventType}.{H}) ────────────────────
+
+const eventPrefix = "pokt.events."
+
+// EventToken converts an ABCI event type to a single NATS token: "." is the
+// NATS separator, so "pocket.supplier.EventSupplierStaked" becomes
+// "pocket_supplier_EventSupplierStaked" (ADR-022 amendment).
+func EventToken(eventType string) string { return strings.ReplaceAll(eventType, ".", "_") }
+
+// EventSubject returns the subject for one event of eventType at height h.
+func EventSubject(eventType string, h int64) string {
+	return eventPrefix + EventToken(eventType) + "." + strconv.FormatInt(h, 10)
+}
+
+// EventSubjectFilter matches all heights of one event type.
+func EventSubjectFilter(eventType string) string { return eventPrefix + EventToken(eventType) + ".*" }
+
+// HeightFromEventSubject parses pokt.events.{token}.{H}.
+func HeightFromEventSubject(subject string) (int64, error) {
+	if !strings.HasPrefix(subject, eventPrefix) {
+		return 0, fmt.Errorf("not an event subject: %q", subject)
+	}
+	rest := strings.Split(subject[len(eventPrefix):], ".")
+	if len(rest) != 2 {
+		return 0, fmt.Errorf("malformed event subject: %q", subject)
+	}
+	h, err := strconv.ParseInt(rest[1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse height from %q: %w", subject, err)
+	}
+	return h, nil
+}
+
+// ── kv fan-out (ADR-022: pokt.kv.{store}.{H}) ───────────────────────────────
+
+const kvPrefix = "pokt.kv."
+
+// KVSubject returns the subject for one StoreKVPair of store at height h.
+func KVSubject(store string, h int64) string {
+	return kvPrefix + store + "." + strconv.FormatInt(h, 10)
+}
+
+// KVSubjectFilter matches all heights of one store.
+func KVSubjectFilter(store string) string { return kvPrefix + store + ".*" }
+
+// HeightFromKVSubject parses pokt.kv.{store}.{H}.
+func HeightFromKVSubject(subject string) (int64, error) {
+	if !strings.HasPrefix(subject, kvPrefix) {
+		return 0, fmt.Errorf("not a kv subject: %q", subject)
+	}
+	rest := strings.Split(subject[len(kvPrefix):], ".")
+	if len(rest) != 2 {
+		return 0, fmt.Errorf("malformed kv subject: %q", subject)
+	}
+	h, err := strconv.ParseInt(rest[1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse height from %q: %w", subject, err)
+	}
+	return h, nil
+}
+
+// HeightFromSubject extracts the height from any PocketScribe subject grammar
+// (block / tx / events / kv). Single dispatch point for the consumer runtimes.
+func HeightFromSubject(subject string) (int64, error) {
+	switch {
+	case strings.HasPrefix(subject, blockPrefix):
+		return HeightFromBlockSubject(subject)
+	case strings.HasPrefix(subject, txPrefix):
+		h, _, err := HeightFromTxSubject(subject)
+		return h, err
+	case strings.HasPrefix(subject, eventPrefix):
+		return HeightFromEventSubject(subject)
+	case strings.HasPrefix(subject, kvPrefix):
+		return HeightFromKVSubject(subject)
+	default:
+		return 0, fmt.Errorf("unknown subject grammar: %q", subject)
+	}
+}

@@ -203,15 +203,6 @@ func (m *QueryGetSessionResponse) GetSession() *Session {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*QueryParamsRequest)(nil), "pocket.session.QueryParamsRequest")
-	proto.RegisterType((*QueryParamsResponse)(nil), "pocket.session.QueryParamsResponse")
-	proto.RegisterType((*QueryGetSessionRequest)(nil), "pocket.session.QueryGetSessionRequest")
-	proto.RegisterType((*QueryGetSessionResponse)(nil), "pocket.session.QueryGetSessionResponse")
-}
-
-func init() { proto.RegisterFile("pocket/session/query.proto", fileDescriptor_389f0d2e28972586) }
-
 var fileDescriptor_389f0d2e28972586 = []byte{
 	// 577 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x53, 0xc1, 0x6b, 0x13, 0x4f,

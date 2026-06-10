@@ -1,6 +1,6 @@
 # ADR-024: Consumer batching discipline
 
-**Status**: Proposed
+**Status**: Accepted (Slice 1 Phase E, 2026-06-09)
 **Date**: 2026-05-23
 **Authors**: Jorge Cuesta, Claude
 
@@ -84,3 +84,14 @@ CREATE TABLE consumer_consolidation (
 - [ADR-022](ADR-022-nats-payload-discipline.md) — payload discipline
 - [ADR-025](ADR-025-indexer-coordination.md) — indexer coordination
 - CLAUDE.md §5 — "ack after commit" invariant
+
+## Amendment (Phase E, 2026-06-09): implementation scoping
+
+Phase E implements the block-boundary fence (trigger 1) in
+`internal/consumer/batch.go`. The size cap (trigger 2) and time cap (trigger 3)
+partial-flush valves are deferred to Phase G hardening — bootstrap replays are
+bounded and the envelope follows the fan-out immediately. The buffer dedups
+redeliveries by Nats-Msg-Id so an AckWait redelivery cannot double-buffer.
+Quiet heights (zero fan-out messages for a consumer's filters) flush an EMPTY
+batch when the envelope arrives — this is what advances the supplier cursor
+over heights with no supplier activity.

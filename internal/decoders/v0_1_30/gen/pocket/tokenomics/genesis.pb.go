@@ -66,12 +66,6 @@ func (m *GenesisState) GetParams() Params {
 	return Params{}
 }
 
-func init() {
-	proto.RegisterType((*GenesisState)(nil), "pocket.tokenomics.GenesisState")
-}
-
-func init() { proto.RegisterFile("pocket/tokenomics/genesis.proto", fileDescriptor_792d101b41fb113f) }
-
 var fileDescriptor_792d101b41fb113f = []byte{
 	// 313 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x92, 0x2f, 0xc8, 0x4f, 0xce,

@@ -250,15 +250,6 @@ func (m *EventGatewayUnbondingCanceled) GetSessionEndHeight() int64 {
 	return 0
 }
 
-func init() {
-	proto.RegisterType((*EventGatewayStaked)(nil), "pocket.gateway.EventGatewayStaked")
-	proto.RegisterType((*EventGatewayUnbondingBegin)(nil), "pocket.gateway.EventGatewayUnbondingBegin")
-	proto.RegisterType((*EventGatewayUnbondingEnd)(nil), "pocket.gateway.EventGatewayUnbondingEnd")
-	proto.RegisterType((*EventGatewayUnbondingCanceled)(nil), "pocket.gateway.EventGatewayUnbondingCanceled")
-}
-
-func init() { proto.RegisterFile("pocket/gateway/event.proto", fileDescriptor_f0556de18a777465) }
-
 var fileDescriptor_f0556de18a777465 = []byte{
 	// 434 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xdc, 0x94, 0x4f, 0x6b, 0xd4, 0x40,

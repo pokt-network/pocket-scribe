@@ -1,0 +1,8 @@
+network:
+  id: test
+  chain_id: pocket-test
+  genesis_height: 0
+  genesis_decoder_version: v0_1_0
+endpoints:
+  rpc:
+    - http://localhost:26657

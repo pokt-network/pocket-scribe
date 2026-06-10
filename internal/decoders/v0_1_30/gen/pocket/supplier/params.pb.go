@@ -77,12 +77,6 @@ func (m *Params) GetStakingFee() *types.Coin {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*Params)(nil), "pocket.supplier.Params")
-}
-
-func init() { proto.RegisterFile("pocket/supplier/params.proto", fileDescriptor_0c4f2ef37b183b5f) }
-
 var fileDescriptor_0c4f2ef37b183b5f = []byte{
 	// 407 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x91, 0x31, 0x8b, 0xd4, 0x40,
