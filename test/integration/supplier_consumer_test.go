@@ -701,7 +701,7 @@ func queryEventUnbondingBegin(t *testing.T, s *store.Store, height int64) []even
 //     unbonding_end_height=298920, supplier IS NOT NULL (embed always present).
 //   - supplier_history: 5 dehydrated rows (one per operator, services IS NULL).
 //   - scu_rows_min: ≥ 40 (real KV fan-out for 5 unstaking suppliers).
-func TestSupplierUnbondingFixture(t *testing.T) { // spec test 23
+func TestSupplierUnbondingFixture(t *testing.T) { // Phase E hardening (informal label; NOT §11.1 test 23 — that is TestDynamicRequiredSetPerHeight)
 	pg.Reset(t)
 	stream := freshStream(t)
 	ids := loadDecoderVersionIDs(t)

@@ -130,6 +130,25 @@ CREATE TABLE upgrades (
 
 `store.UpsertUpgrade` writes rows idempotently (`ON CONFLICT (name) DO UPDATE`). `store.ListUpgrades` returns rows ordered by `applied_at_height ASC` for the router snapshot.
 
+## Version-aware orchestration: required_set and dormancy (Phase F)
+
+Sealing is height-aware (spec §4.10). For a network with genesis decoder version `G` and the `upgrades` table above:
+
+```
+consumer_first_valid_height(c) = 1                      if c.first_valid_version ≤ G (semver)
+                               = upgrades[V].height     if V was applied on this network
+                               = DormantHeight (∞)      otherwise — dormant on this network
+
+required_set(H)  = active consumers with first_valid_height ≤ H
+is_sealed(H)     = required_set(H) non-empty AND every member consolidated past H
+```
+
+Implementation: `internal/store/versiongate.go` (pure core + `Store.FirstValidHeights`), `Store.RequiredSet(ctx, H, genesisVersion)`, `Store.IsSealed(ctx, H, genesisVersion)`. All version strings cross through `internal/protover` (semver, never lexicographic — `v0.1.10 > v0.1.9`); dotted (`v0.1.20`) and decoder-dir (`v0_1_20`) spellings are both accepted at the boundary.
+
+**Dormancy gate.** On startup, after self-registration, a consumer resolves its own `first_valid_height` (`internal/consumer/dormancy.go`). If dormant it logs and exits cleanly (exit 0) — it stays registered (`active=true`) but never enters any `required_set`, so it cannot block seals. **Wakeup is restart-based**: after `ps sync-upgrades` lands the version that makes a dormant consumer applicable, that consumer must be (re)started. There is no in-process wakeup.
+
+**Multi-network consequence.** The same consumer binary behaves differently per network: a consumer with `first_valid_version: v0.1.20` is required from height 135297 on mainnet (genesis `v0_1_0` + upgrade row) but from height 1 on a localnet whose genesis is `v0_1_33`. Backfill semantics follow: a consumer registered after the fact never affects seals below its first_valid_height, and pauses seals at/above it until its backfill catches up.
+
 ## Onboarding a new version
 
 Use `/add-decoder-version`. The flow:

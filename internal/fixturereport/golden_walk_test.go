@@ -12,6 +12,11 @@ import (
 // TestGoldenWalkAllFixtures re-derives every fixture's expected.json through
 // the live decode pipeline. Adding a fixture triplet automatically enrolls it
 // — this is the "N versions × categories green" enforcement for Phase F.
+//
+// TODO(phase-f-pending): v0.1.30 / v0.1.31 / v0.1.33 have no archived
+// FilePlugin data yet (archeology still running on multi-1). When their
+// tarballs land in the bucket, run the curate-version-fixtures skill —
+// the new triplets enroll here automatically. See test/fixtures/README.md.
 func TestGoldenWalkAllFixtures(t *testing.T) {
 	r := mustRouter(t)
 	pattern := "../../test/fixtures/v0_1_*/block-*-expected.json"

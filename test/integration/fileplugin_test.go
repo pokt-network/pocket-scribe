@@ -25,7 +25,9 @@ func TestBootstrapFanOutOrderingContract(t *testing.T) {
 	ctx := context.Background()
 
 	dir := filepath.Join("..", "..", "test", "fixtures", "v0_1_0")
-	heights, total, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket", nil)
+	// maxHeight=3 pins this test to blocks 1-3; the v0_1_0 era dir also holds
+	// curated v0.1.2-v0.1.7 fixtures (heights 786xx) that are out of scope here.
+	heights, total, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 3, "pocket", nil)
 	if err != nil {
 		t.Fatalf("Bootstrap: %v", err)
 	}
@@ -142,7 +144,7 @@ outer:
 		env.TxCount, env.EventCount, env.KvCount, env.PublishedMsgCount, env.ChainId)
 
 	// Idempotent re-run: second Bootstrap publishes 0 new messages (dedup).
-	h2, total2, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 0, "pocket", nil)
+	h2, total2, err := fileplugin.Bootstrap(ctx, nats.Client, dir, 3, "pocket", nil)
 	if err != nil {
 		t.Fatalf("Bootstrap (2nd run): %v", err)
 	}
