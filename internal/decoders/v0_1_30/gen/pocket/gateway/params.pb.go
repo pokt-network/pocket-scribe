@@ -67,12 +67,6 @@ func (m *Params) GetMinStake() *types.Coin {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*Params)(nil), "pocket.gateway.Params")
-}
-
-func init() { proto.RegisterFile("pocket/gateway/params.proto", fileDescriptor_10eb1d66af3cda5b) }
-
 var fileDescriptor_10eb1d66af3cda5b = []byte{
 	// 351 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x54, 0x50, 0xc1, 0x4a, 0xf3, 0x40,

@@ -337,17 +337,6 @@ func (m *MsgAddServiceResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MsgAddServiceResponse proto.InternalMessageInfo
 
-func init() {
-	proto.RegisterType((*MsgUpdateParams)(nil), "pocket.service.MsgUpdateParams")
-	proto.RegisterType((*MsgUpdateParamsResponse)(nil), "pocket.service.MsgUpdateParamsResponse")
-	proto.RegisterType((*MsgUpdateParam)(nil), "pocket.service.MsgUpdateParam")
-	proto.RegisterType((*MsgUpdateParamResponse)(nil), "pocket.service.MsgUpdateParamResponse")
-	proto.RegisterType((*MsgAddService)(nil), "pocket.service.MsgAddService")
-	proto.RegisterType((*MsgAddServiceResponse)(nil), "pocket.service.MsgAddServiceResponse")
-}
-
-func init() { proto.RegisterFile("pocket/service/tx.proto", fileDescriptor_c139846c83c36dca) }
-
 var fileDescriptor_c139846c83c36dca = []byte{
 	// 687 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x54, 0xcf, 0x4b, 0xdc, 0x4a,

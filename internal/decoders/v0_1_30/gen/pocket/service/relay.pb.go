@@ -406,17 +406,6 @@ func (m *RelayMinerError) GetMessage() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterType((*Relay)(nil), "pocket.service.Relay")
-	proto.RegisterType((*RelayRequestMetadata)(nil), "pocket.service.RelayRequestMetadata")
-	proto.RegisterType((*RelayRequest)(nil), "pocket.service.RelayRequest")
-	proto.RegisterType((*RelayResponse)(nil), "pocket.service.RelayResponse")
-	proto.RegisterType((*RelayResponseMetadata)(nil), "pocket.service.RelayResponseMetadata")
-	proto.RegisterType((*RelayMinerError)(nil), "pocket.service.RelayMinerError")
-}
-
-func init() { proto.RegisterFile("pocket/service/relay.proto", fileDescriptor_3c7fe7b34438003f) }
-
 var fileDescriptor_3c7fe7b34438003f = []byte{
 	// 627 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x54, 0x4f, 0x6b, 0x13, 0x41,

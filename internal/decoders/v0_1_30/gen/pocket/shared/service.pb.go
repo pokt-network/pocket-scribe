@@ -477,20 +477,6 @@ func (m *Metadata) GetExperimentalApiSpecs() []byte {
 	return nil
 }
 
-func init() {
-	proto.RegisterEnum("pocket.shared.RPCType", RPCType_name, RPCType_value)
-	proto.RegisterEnum("pocket.shared.ConfigOptions", ConfigOptions_name, ConfigOptions_value)
-	proto.RegisterType((*Service)(nil), "pocket.shared.Service")
-	proto.RegisterType((*ApplicationServiceConfig)(nil), "pocket.shared.ApplicationServiceConfig")
-	proto.RegisterType((*SupplierServiceConfig)(nil), "pocket.shared.SupplierServiceConfig")
-	proto.RegisterType((*SupplierEndpoint)(nil), "pocket.shared.SupplierEndpoint")
-	proto.RegisterType((*ServiceRevenueShare)(nil), "pocket.shared.ServiceRevenueShare")
-	proto.RegisterType((*ConfigOption)(nil), "pocket.shared.ConfigOption")
-	proto.RegisterType((*Metadata)(nil), "pocket.shared.Metadata")
-}
-
-func init() { proto.RegisterFile("pocket/shared/service.proto", fileDescriptor_4dfdeb4ae793ca69) }
-
 var fileDescriptor_4dfdeb4ae793ca69 = []byte{
 	// 781 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0x41, 0x8f, 0xdb, 0x54,

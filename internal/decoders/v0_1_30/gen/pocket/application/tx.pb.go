@@ -650,25 +650,6 @@ func (m *MsgUpdateParamResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MsgUpdateParamResponse proto.InternalMessageInfo
 
-func init() {
-	proto.RegisterType((*MsgUpdateParams)(nil), "pocket.application.MsgUpdateParams")
-	proto.RegisterType((*MsgUpdateParamsResponse)(nil), "pocket.application.MsgUpdateParamsResponse")
-	proto.RegisterType((*MsgStakeApplication)(nil), "pocket.application.MsgStakeApplication")
-	proto.RegisterType((*MsgStakeApplicationResponse)(nil), "pocket.application.MsgStakeApplicationResponse")
-	proto.RegisterType((*MsgUnstakeApplication)(nil), "pocket.application.MsgUnstakeApplication")
-	proto.RegisterType((*MsgUnstakeApplicationResponse)(nil), "pocket.application.MsgUnstakeApplicationResponse")
-	proto.RegisterType((*MsgDelegateToGateway)(nil), "pocket.application.MsgDelegateToGateway")
-	proto.RegisterType((*MsgDelegateToGatewayResponse)(nil), "pocket.application.MsgDelegateToGatewayResponse")
-	proto.RegisterType((*MsgUndelegateFromGateway)(nil), "pocket.application.MsgUndelegateFromGateway")
-	proto.RegisterType((*MsgUndelegateFromGatewayResponse)(nil), "pocket.application.MsgUndelegateFromGatewayResponse")
-	proto.RegisterType((*MsgTransferApplication)(nil), "pocket.application.MsgTransferApplication")
-	proto.RegisterType((*MsgTransferApplicationResponse)(nil), "pocket.application.MsgTransferApplicationResponse")
-	proto.RegisterType((*MsgUpdateParam)(nil), "pocket.application.MsgUpdateParam")
-	proto.RegisterType((*MsgUpdateParamResponse)(nil), "pocket.application.MsgUpdateParamResponse")
-}
-
-func init() { proto.RegisterFile("pocket/application/tx.proto", fileDescriptor_bfd702a494fb2d77) }
-
 var fileDescriptor_bfd702a494fb2d77 = []byte{
 	// 972 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x56, 0x41, 0x6b, 0x1b, 0x47,

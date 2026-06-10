@@ -583,21 +583,6 @@ func (m *QueryAllProofsResponse) GetPagination() *query.PageResponse {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*QueryParamsRequest)(nil), "pocket.proof.QueryParamsRequest")
-	proto.RegisterType((*QueryParamsResponse)(nil), "pocket.proof.QueryParamsResponse")
-	proto.RegisterType((*QueryGetClaimRequest)(nil), "pocket.proof.QueryGetClaimRequest")
-	proto.RegisterType((*QueryGetClaimResponse)(nil), "pocket.proof.QueryGetClaimResponse")
-	proto.RegisterType((*QueryAllClaimsRequest)(nil), "pocket.proof.QueryAllClaimsRequest")
-	proto.RegisterType((*QueryAllClaimsResponse)(nil), "pocket.proof.QueryAllClaimsResponse")
-	proto.RegisterType((*QueryGetProofRequest)(nil), "pocket.proof.QueryGetProofRequest")
-	proto.RegisterType((*QueryGetProofResponse)(nil), "pocket.proof.QueryGetProofResponse")
-	proto.RegisterType((*QueryAllProofsRequest)(nil), "pocket.proof.QueryAllProofsRequest")
-	proto.RegisterType((*QueryAllProofsResponse)(nil), "pocket.proof.QueryAllProofsResponse")
-}
-
-func init() { proto.RegisterFile("pocket/proof/query.proto", fileDescriptor_ff3d1f74648e8cfb) }
-
 var fileDescriptor_ff3d1f74648e8cfb = []byte{
 	// 838 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x56, 0x4f, 0x6b, 0x13, 0x4d,

@@ -106,13 +106,6 @@ func (m *QueryParamsResponse) GetParams() Params {
 	return Params{}
 }
 
-func init() {
-	proto.RegisterType((*QueryParamsRequest)(nil), "pocket.shared.QueryParamsRequest")
-	proto.RegisterType((*QueryParamsResponse)(nil), "pocket.shared.QueryParamsResponse")
-}
-
-func init() { proto.RegisterFile("pocket/shared/query.proto", fileDescriptor_a4fbfb371eec2c59) }
-
 var fileDescriptor_a4fbfb371eec2c59 = []byte{
 	// 416 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x51, 0x3f, 0x8b, 0xd4, 0x40,

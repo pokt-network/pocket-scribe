@@ -94,12 +94,6 @@ func (m *Params) GetMorseAccountClaimingEnabled() bool {
 	return false
 }
 
-func init() {
-	proto.RegisterType((*Params)(nil), "pocket.migration.Params")
-}
-
-func init() { proto.RegisterFile("pocket/migration/params.proto", fileDescriptor_df24630ca1567ad4) }
-
 var fileDescriptor_df24630ca1567ad4 = []byte{
 	// 468 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0x41, 0x8b, 0xd3, 0x40,

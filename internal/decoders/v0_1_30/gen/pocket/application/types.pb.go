@@ -282,16 +282,6 @@ func (m *PendingUndelegation) GetGatewayAddress() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterType((*Application)(nil), "pocket.application.Application")
-	proto.RegisterMapType((map[uint64]UndelegatingGatewayList)(nil), "pocket.application.Application.PendingUndelegationsEntry")
-	proto.RegisterType((*UndelegatingGatewayList)(nil), "pocket.application.UndelegatingGatewayList")
-	proto.RegisterType((*PendingApplicationTransfer)(nil), "pocket.application.PendingApplicationTransfer")
-	proto.RegisterType((*PendingUndelegation)(nil), "pocket.application.PendingUndelegation")
-}
-
-func init() { proto.RegisterFile("pocket/application/types.proto", fileDescriptor_17caf8b8f14e547c) }
-
 var fileDescriptor_17caf8b8f14e547c = []byte{
 	// 704 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x94, 0xcf, 0x6a, 0xdb, 0x4a,

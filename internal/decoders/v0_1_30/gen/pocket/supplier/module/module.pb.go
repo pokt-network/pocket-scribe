@@ -66,14 +66,6 @@ func (m *Module) GetAuthority() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterType((*Module)(nil), "pocket.supplier.module.Module")
-}
-
-func init() {
-	proto.RegisterFile("pocket/supplier/module/module.proto", fileDescriptor_8e3f931f08ba6a75)
-}
-
 var fileDescriptor_8e3f931f08ba6a75 = []byte{
 	// 331 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x90, 0x31, 0x4b, 0xc3, 0x40,

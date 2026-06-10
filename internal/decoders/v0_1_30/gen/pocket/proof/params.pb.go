@@ -108,12 +108,6 @@ func (m *Params) GetProofSubmissionFee() *types.Coin {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*Params)(nil), "pocket.proof.Params")
-}
-
-func init() { proto.RegisterFile("pocket/proof/params.proto", fileDescriptor_42b012b13af1e20c) }
-
 var fileDescriptor_42b012b13af1e20c = []byte{
 	// 482 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x92, 0x41, 0x6b, 0x13, 0x41,

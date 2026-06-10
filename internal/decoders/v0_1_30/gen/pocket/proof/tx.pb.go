@@ -447,19 +447,6 @@ func (m *MsgSubmitProofResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MsgSubmitProofResponse proto.InternalMessageInfo
 
-func init() {
-	proto.RegisterType((*MsgUpdateParams)(nil), "pocket.proof.MsgUpdateParams")
-	proto.RegisterType((*MsgUpdateParamsResponse)(nil), "pocket.proof.MsgUpdateParamsResponse")
-	proto.RegisterType((*MsgUpdateParam)(nil), "pocket.proof.MsgUpdateParam")
-	proto.RegisterType((*MsgUpdateParamResponse)(nil), "pocket.proof.MsgUpdateParamResponse")
-	proto.RegisterType((*MsgCreateClaim)(nil), "pocket.proof.MsgCreateClaim")
-	proto.RegisterType((*MsgCreateClaimResponse)(nil), "pocket.proof.MsgCreateClaimResponse")
-	proto.RegisterType((*MsgSubmitProof)(nil), "pocket.proof.MsgSubmitProof")
-	proto.RegisterType((*MsgSubmitProofResponse)(nil), "pocket.proof.MsgSubmitProofResponse")
-}
-
-func init() { proto.RegisterFile("pocket/proof/tx.proto", fileDescriptor_e2ac03fee77e551a) }
-
 var fileDescriptor_e2ac03fee77e551a = []byte{
 	// 810 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x55, 0x41, 0x6f, 0xdc, 0x44,

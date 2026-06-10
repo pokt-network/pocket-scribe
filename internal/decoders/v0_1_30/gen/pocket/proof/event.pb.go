@@ -603,16 +603,6 @@ func (m *EventProofValidityChecked) GetSupplierOperatorAddress() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterType((*EventClaimCreated)(nil), "pocket.proof.EventClaimCreated")
-	proto.RegisterType((*EventClaimUpdated)(nil), "pocket.proof.EventClaimUpdated")
-	proto.RegisterType((*EventProofSubmitted)(nil), "pocket.proof.EventProofSubmitted")
-	proto.RegisterType((*EventProofUpdated)(nil), "pocket.proof.EventProofUpdated")
-	proto.RegisterType((*EventProofValidityChecked)(nil), "pocket.proof.EventProofValidityChecked")
-}
-
-func init() { proto.RegisterFile("pocket/proof/event.proto", fileDescriptor_c2b0d5529f1c9df4) }
-
 var fileDescriptor_c2b0d5529f1c9df4 = []byte{
 	// 724 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x97, 0xcf, 0x4f, 0xdb, 0x48,

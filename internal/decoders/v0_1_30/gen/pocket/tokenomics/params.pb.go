@@ -263,14 +263,6 @@ func (m *MintEqualsBurnClaimDistribution) GetApplication() float64 {
 	return 0
 }
 
-func init() {
-	proto.RegisterType((*Params)(nil), "pocket.tokenomics.Params")
-	proto.RegisterType((*MintAllocationPercentages)(nil), "pocket.tokenomics.MintAllocationPercentages")
-	proto.RegisterType((*MintEqualsBurnClaimDistribution)(nil), "pocket.tokenomics.MintEqualsBurnClaimDistribution")
-}
-
-func init() { proto.RegisterFile("pocket/tokenomics/params.proto", fileDescriptor_577bb6b98de8f6d1) }
-
 var fileDescriptor_577bb6b98de8f6d1 = []byte{
 	// 724 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x55, 0x4f, 0x6b, 0xd4, 0x4c,

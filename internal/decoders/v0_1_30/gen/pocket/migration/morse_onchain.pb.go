@@ -252,16 +252,6 @@ func (m *MorseClaimableAccount) GetUnstakingTime() time.Time {
 	return time.Time{}
 }
 
-func init() {
-	proto.RegisterEnum("pocket.migration.MorseSupplierClaimSignerType", MorseSupplierClaimSignerType_name, MorseSupplierClaimSignerType_value)
-	proto.RegisterType((*MorseAccountState)(nil), "pocket.migration.MorseAccountState")
-	proto.RegisterType((*MorseClaimableAccount)(nil), "pocket.migration.MorseClaimableAccount")
-}
-
-func init() {
-	proto.RegisterFile("pocket/migration/morse_onchain.proto", fileDescriptor_dd3531b7be3acfaa)
-}
-
 var fileDescriptor_dd3531b7be3acfaa = []byte{
 	// 838 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x55, 0x31, 0x6f, 0xdb, 0x46,

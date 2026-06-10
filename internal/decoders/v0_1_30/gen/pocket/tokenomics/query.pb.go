@@ -106,13 +106,6 @@ func (m *QueryParamsResponse) GetParams() Params {
 	return Params{}
 }
 
-func init() {
-	proto.RegisterType((*QueryParamsRequest)(nil), "pocket.tokenomics.QueryParamsRequest")
-	proto.RegisterType((*QueryParamsResponse)(nil), "pocket.tokenomics.QueryParamsResponse")
-}
-
-func init() { proto.RegisterFile("pocket/tokenomics/query.proto", fileDescriptor_f3afac728df27ca5) }
-
 var fileDescriptor_f3afac728df27ca5 = []byte{
 	// 408 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x52, 0x3f, 0xcb, 0xd3, 0x40,

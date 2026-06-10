@@ -274,17 +274,6 @@ func (m *QueryAllMorseClaimableAccountResponse) GetPagination() *query.PageRespo
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*QueryParamsRequest)(nil), "pocket.migration.QueryParamsRequest")
-	proto.RegisterType((*QueryParamsResponse)(nil), "pocket.migration.QueryParamsResponse")
-	proto.RegisterType((*QueryMorseClaimableAccountRequest)(nil), "pocket.migration.QueryMorseClaimableAccountRequest")
-	proto.RegisterType((*QueryMorseClaimableAccountResponse)(nil), "pocket.migration.QueryMorseClaimableAccountResponse")
-	proto.RegisterType((*QueryAllMorseClaimableAccountRequest)(nil), "pocket.migration.QueryAllMorseClaimableAccountRequest")
-	proto.RegisterType((*QueryAllMorseClaimableAccountResponse)(nil), "pocket.migration.QueryAllMorseClaimableAccountResponse")
-}
-
-func init() { proto.RegisterFile("pocket/migration/query.proto", fileDescriptor_6dfd007cf5ed0ff6) }
-
 var fileDescriptor_6dfd007cf5ed0ff6 = []byte{
 	// 648 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x54, 0xcf, 0x6b, 0xd4, 0x40,

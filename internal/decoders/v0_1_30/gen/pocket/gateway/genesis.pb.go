@@ -74,12 +74,6 @@ func (m *GenesisState) GetGatewayList() []Gateway {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*GenesisState)(nil), "pocket.gateway.GenesisState")
-}
-
-func init() { proto.RegisterFile("pocket/gateway/genesis.proto", fileDescriptor_2308efe63817b228) }
-
 var fileDescriptor_2308efe63817b228 = []byte{
 	// 355 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x5c, 0x91, 0x31, 0x4b, 0xc3, 0x40,

@@ -99,14 +99,6 @@ func (m *RelayMiningDifficulty) GetTargetHash() []byte {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*RelayMiningDifficulty)(nil), "pocket.service.RelayMiningDifficulty")
-}
-
-func init() {
-	proto.RegisterFile("pocket/service/relay_mining_difficulty.proto", fileDescriptor_b195d96d518418c4)
-}
-
 var fileDescriptor_b195d96d518418c4 = []byte{
 	// 377 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x91, 0xb1, 0x8a, 0xdb, 0x30,

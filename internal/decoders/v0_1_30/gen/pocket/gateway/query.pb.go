@@ -276,17 +276,6 @@ func (m *QueryAllGatewaysResponse) GetPagination() *query.PageResponse {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*QueryParamsRequest)(nil), "pocket.gateway.QueryParamsRequest")
-	proto.RegisterType((*QueryParamsResponse)(nil), "pocket.gateway.QueryParamsResponse")
-	proto.RegisterType((*QueryGetGatewayRequest)(nil), "pocket.gateway.QueryGetGatewayRequest")
-	proto.RegisterType((*QueryGetGatewayResponse)(nil), "pocket.gateway.QueryGetGatewayResponse")
-	proto.RegisterType((*QueryAllGatewaysRequest)(nil), "pocket.gateway.QueryAllGatewaysRequest")
-	proto.RegisterType((*QueryAllGatewaysResponse)(nil), "pocket.gateway.QueryAllGatewaysResponse")
-}
-
-func init() { proto.RegisterFile("pocket/gateway/query.proto", fileDescriptor_918c541b0abffe4e) }
-
 var fileDescriptor_918c541b0abffe4e = []byte{
 	// 630 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x94, 0x41, 0x6b, 0x13, 0x41,

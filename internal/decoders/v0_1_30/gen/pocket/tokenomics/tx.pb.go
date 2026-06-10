@@ -275,15 +275,6 @@ func (m *MsgUpdateParamResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MsgUpdateParamResponse proto.InternalMessageInfo
 
-func init() {
-	proto.RegisterType((*MsgUpdateParams)(nil), "pocket.tokenomics.MsgUpdateParams")
-	proto.RegisterType((*MsgUpdateParamsResponse)(nil), "pocket.tokenomics.MsgUpdateParamsResponse")
-	proto.RegisterType((*MsgUpdateParam)(nil), "pocket.tokenomics.MsgUpdateParam")
-	proto.RegisterType((*MsgUpdateParamResponse)(nil), "pocket.tokenomics.MsgUpdateParamResponse")
-}
-
-func init() { proto.RegisterFile("pocket/tokenomics/tx.proto", fileDescriptor_df88dc3fd9e72965) }
-
 var fileDescriptor_df88dc3fd9e72965 = []byte{
 	// 718 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x54, 0xcd, 0x4f, 0x13, 0x4d,

@@ -79,12 +79,6 @@ func (m *Params) GetTargetNumRelays() uint64 {
 	return 0
 }
 
-func init() {
-	proto.RegisterType((*Params)(nil), "pocket.service.Params")
-}
-
-func init() { proto.RegisterFile("pocket/service/params.proto", fileDescriptor_bb052db7e9dc89f5) }
-
 var fileDescriptor_bb052db7e9dc89f5 = []byte{
 	// 418 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x64, 0x91, 0x31, 0x6f, 0x13, 0x31,

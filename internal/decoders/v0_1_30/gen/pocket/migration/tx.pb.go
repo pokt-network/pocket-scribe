@@ -765,23 +765,6 @@ func (m *MsgRecoverMorseAccountResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MsgRecoverMorseAccountResponse proto.InternalMessageInfo
 
-func init() {
-	proto.RegisterType((*MsgUpdateParams)(nil), "pocket.migration.MsgUpdateParams")
-	proto.RegisterType((*MsgUpdateParamsResponse)(nil), "pocket.migration.MsgUpdateParamsResponse")
-	proto.RegisterType((*MsgImportMorseClaimableAccounts)(nil), "pocket.migration.MsgImportMorseClaimableAccounts")
-	proto.RegisterType((*MsgImportMorseClaimableAccountsResponse)(nil), "pocket.migration.MsgImportMorseClaimableAccountsResponse")
-	proto.RegisterType((*MsgClaimMorseAccount)(nil), "pocket.migration.MsgClaimMorseAccount")
-	proto.RegisterType((*MsgClaimMorseAccountResponse)(nil), "pocket.migration.MsgClaimMorseAccountResponse")
-	proto.RegisterType((*MsgClaimMorseApplication)(nil), "pocket.migration.MsgClaimMorseApplication")
-	proto.RegisterType((*MsgClaimMorseApplicationResponse)(nil), "pocket.migration.MsgClaimMorseApplicationResponse")
-	proto.RegisterType((*MsgClaimMorseSupplier)(nil), "pocket.migration.MsgClaimMorseSupplier")
-	proto.RegisterType((*MsgClaimMorseSupplierResponse)(nil), "pocket.migration.MsgClaimMorseSupplierResponse")
-	proto.RegisterType((*MsgRecoverMorseAccount)(nil), "pocket.migration.MsgRecoverMorseAccount")
-	proto.RegisterType((*MsgRecoverMorseAccountResponse)(nil), "pocket.migration.MsgRecoverMorseAccountResponse")
-}
-
-func init() { proto.RegisterFile("pocket/migration/tx.proto", fileDescriptor_e5cfeb615ae29ee6) }
-
 var fileDescriptor_e5cfeb615ae29ee6 = []byte{
 	// 1284 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xdc, 0x57, 0x4f, 0x6c, 0xdb, 0xd4,

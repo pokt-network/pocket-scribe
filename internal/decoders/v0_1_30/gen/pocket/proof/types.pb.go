@@ -302,17 +302,6 @@ func (m *SessionSMT) GetSmtRoot() []byte {
 	return nil
 }
 
-func init() {
-	proto.RegisterEnum("pocket.proof.ProofRequirementReason", ProofRequirementReason_name, ProofRequirementReason_value)
-	proto.RegisterEnum("pocket.proof.ClaimProofStage", ClaimProofStage_name, ClaimProofStage_value)
-	proto.RegisterEnum("pocket.proof.ClaimProofStatus", ClaimProofStatus_name, ClaimProofStatus_value)
-	proto.RegisterType((*Proof)(nil), "pocket.proof.Proof")
-	proto.RegisterType((*Claim)(nil), "pocket.proof.Claim")
-	proto.RegisterType((*SessionSMT)(nil), "pocket.proof.SessionSMT")
-}
-
-func init() { proto.RegisterFile("pocket/proof/types.proto", fileDescriptor_cdde56dba22629df) }
-
 var fileDescriptor_cdde56dba22629df = []byte{
 	// 658 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x54, 0x3f, 0x6f, 0xd3, 0x40,

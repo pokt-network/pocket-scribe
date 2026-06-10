@@ -83,12 +83,6 @@ func (m *GenesisState) GetRelayMiningDifficultyList() []RelayMiningDifficulty {
 	return nil
 }
 
-func init() {
-	proto.RegisterType((*GenesisState)(nil), "pocket.service.GenesisState")
-}
-
-func init() { proto.RegisterFile("pocket/service/genesis.proto", fileDescriptor_0aa8420645aba615) }
-
 var fileDescriptor_0aa8420645aba615 = []byte{
 	// 407 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x52, 0x4f, 0xcb, 0xd3, 0x30,

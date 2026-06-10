@@ -365,17 +365,6 @@ func (m *EventSupplierServiceConfigActivated) GetServiceId() string {
 	return ""
 }
 
-func init() {
-	proto.RegisterEnum("pocket.supplier.SupplierUnbondingReason", SupplierUnbondingReason_name, SupplierUnbondingReason_value)
-	proto.RegisterType((*EventSupplierStaked)(nil), "pocket.supplier.EventSupplierStaked")
-	proto.RegisterType((*EventSupplierUnbondingBegin)(nil), "pocket.supplier.EventSupplierUnbondingBegin")
-	proto.RegisterType((*EventSupplierUnbondingEnd)(nil), "pocket.supplier.EventSupplierUnbondingEnd")
-	proto.RegisterType((*EventSupplierUnbondingCanceled)(nil), "pocket.supplier.EventSupplierUnbondingCanceled")
-	proto.RegisterType((*EventSupplierServiceConfigActivated)(nil), "pocket.supplier.EventSupplierServiceConfigActivated")
-}
-
-func init() { proto.RegisterFile("pocket/supplier/event.proto", fileDescriptor_0ff4bce83a0142ab) }
-
 var fileDescriptor_0ff4bce83a0142ab = []byte{
 	// 717 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x55, 0xcb, 0x6e, 0xd3, 0x4a,
