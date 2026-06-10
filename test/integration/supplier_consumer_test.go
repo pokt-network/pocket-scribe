@@ -277,8 +277,8 @@ func TestSupplierMsgDecodeAcrossVersions(t *testing.T) { // spec test 18
 	// Wait for both runtimes to catch up. Heights are non-contiguous so we poll
 	// HasProcessed instead of the contiguous cursor (mirrors test 16a pattern).
 	for _, h := range []int64{102542, 135836, 290584, 385145} {
-		waitCursor(t, blockRH.store, "block", h, 60*time.Second)
-		waitCursor(t, supplierRH.store, "supplier", h, 60*time.Second)
+		waitHasProcessed(t, blockRH.store, "block", h, 60*time.Second)
+		waitHasProcessed(t, supplierRH.store, "supplier", h, 60*time.Second)
 	}
 
 	// Expected decoded_by_version ids for each fixture height (lenient fallback
@@ -344,8 +344,8 @@ func TestSupplierEventStakedAcrossVersions(t *testing.T) { // spec test 19
 	bootstrapHeights(t, 102542, 135836, 290584, 385145)
 
 	for _, h := range []int64{102542, 135836, 290584, 385145} {
-		waitCursor(t, blockRH.store, "block", h, 60*time.Second)
-		waitCursor(t, supplierRH.store, "supplier", h, 60*time.Second)
+		waitHasProcessed(t, blockRH.store, "block", h, 60*time.Second)
+		waitHasProcessed(t, supplierRH.store, "supplier", h, 60*time.Second)
 	}
 
 	type fixtureCase struct {
@@ -415,8 +415,8 @@ func TestSupplierKVHistoryAppendOnly(t *testing.T) { // spec test 20
 		bootstrapHeights(t, 102542, 135836, 290584, 385145)
 
 		for _, h := range []int64{102542, 135836, 290584, 385145} {
-			waitCursor(t, blockRH.store, "block", h, 60*time.Second)
-			waitCursor(t, supplierRH.store, "supplier", h, 60*time.Second)
+			waitHasProcessed(t, blockRH.store, "block", h, 60*time.Second)
+			waitHasProcessed(t, supplierRH.store, "supplier", h, 60*time.Second)
 		}
 
 		type fixtureCase struct {
@@ -509,8 +509,8 @@ func TestSupplierKVHistoryAppendOnly(t *testing.T) { // spec test 20
 		// Bootstrap 135837 FIRST (out-of-order w.r.t. 135836).
 		bootstrapHeights(t, 135837, 135836)
 
-		waitCursor(t, blockRH.store, "block", 135837, 60*time.Second)
-		waitCursor(t, supplierRH.store, "supplier", 135837, 60*time.Second)
+		waitHasProcessed(t, blockRH.store, "block", 135837, 60*time.Second)
+		waitHasProcessed(t, supplierRH.store, "supplier", 135837, 60*time.Second)
 
 		// Collect supplier_history for 135836 under the out-of-order arrival.
 		ctx := context.Background()

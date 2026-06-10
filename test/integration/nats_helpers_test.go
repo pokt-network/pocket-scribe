@@ -186,6 +186,28 @@ func waitCursor(t *testing.T, s *store.Store, name string, want int64, timeout t
 	}
 }
 
+// waitHasProcessed polls store.HasProcessed until the consumer has a
+// processed_heights row for height or the timeout elapses.  Use this helper
+// (instead of waitCursor) when fixture heights are non-contiguous, because the
+// contiguous cursor never advances past a gap in the height sequence.
+func waitHasProcessed(t *testing.T, s *store.Store, name string, height int64, timeout time.Duration) {
+	t.Helper()
+	ctx := context.Background()
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
+	deadline := time.After(timeout)
+	for {
+		if ok, err := s.HasProcessed(ctx, name, height); err == nil && ok {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("waitHasProcessed(%s, %d): not processed within %s", name, height, timeout)
+		case <-tick.C:
+		}
+	}
+}
+
 // processedCount returns how many processed_heights rows a consumer has.
 func processedCount(t *testing.T, name string) int {
 	t.Helper()
