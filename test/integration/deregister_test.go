@@ -24,7 +24,7 @@ func TestDeregisterConsumerCLIUnblocksSeal(t *testing.T) { // spec test 13
 	}
 	setConsolidation(t, "noop-a", 5)
 	setConsolidation(t, "noop-b", 2)
-	assertSealed(t, s, 5, false)
+	assertSealed(t, s, 5, genesisV0_1_0, false)
 
 	// Decommission noop-b via the real `ps deregister-consumer` command.
 	root := app.NewRootCmd()
@@ -37,12 +37,12 @@ func TestDeregisterConsumerCLIUnblocksSeal(t *testing.T) { // spec test 13
 	}
 
 	// noop-b is no longer in the required set → H=5 now seals on noop-a alone.
-	active, err := s.RequiredSet(ctx, 5)
+	active, err := s.RequiredSet(ctx, 5, genesisV0_1_0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(active) != 1 || active[0] != "noop-a" {
 		t.Fatalf("RequiredSet = %v, want [noop-a]", active)
 	}
-	assertSealed(t, s, 5, true)
+	assertSealed(t, s, 5, genesisV0_1_0, true)
 }

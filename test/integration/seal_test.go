@@ -27,11 +27,11 @@ func TestSealOneConsumer(t *testing.T) { // spec test 7
 	_ = s.RegisterConsumer(ctx, "noop-a", "v0.1.0")
 
 	setConsolidation(t, "noop-a", 4)
-	assertSealed(t, s, 4, true)
-	assertSealed(t, s, 5, false)
+	assertSealed(t, s, 4, genesisV0_1_0, true)
+	assertSealed(t, s, 5, genesisV0_1_0, false)
 
 	setConsolidation(t, "noop-a", 5)
-	assertSealed(t, s, 5, true)
+	assertSealed(t, s, 5, genesisV0_1_0, true)
 }
 
 func TestSealTwoConsumersAND(t *testing.T) { // spec test 8
@@ -44,20 +44,20 @@ func TestSealTwoConsumersAND(t *testing.T) { // spec test 8
 	setConsolidation(t, "noop-a", 10)
 	setConsolidation(t, "noop-b", 7)
 	// H=8: a crossed it, b has not → NOT sealed.
-	assertSealed(t, s, 8, false)
+	assertSealed(t, s, 8, genesisV0_1_0, false)
 	// H=7: both crossed → sealed.
-	assertSealed(t, s, 7, true)
+	assertSealed(t, s, 7, genesisV0_1_0, true)
 
 	// b catches up to 10 → H=8..10 now sealed.
 	setConsolidation(t, "noop-b", 10)
-	assertSealed(t, s, 10, true)
+	assertSealed(t, s, 10, genesisV0_1_0, true)
 }
 
 func assertSealed(t *testing.T, s interface {
-	IsSealed(context.Context, int64) (bool, error)
-}, h int64, want bool) {
+	IsSealed(context.Context, int64, string) (bool, error)
+}, h int64, genesis string, want bool) { //nolint:unparam // genesis varies in Task 5-7 tests; 4-arg form required by plan
 	t.Helper()
-	got, err := s.IsSealed(context.Background(), h)
+	got, err := s.IsSealed(context.Background(), h, genesis)
 	if err != nil {
 		t.Fatalf("IsSealed(%d): %v", h, err)
 	}

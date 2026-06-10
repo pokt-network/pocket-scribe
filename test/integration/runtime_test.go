@@ -78,14 +78,14 @@ func TestE2EPerHeightSealOneAndTwoConsumers(t *testing.T) { // spec tests 7 + 8 
 	waitCursor(t, b.store, "noop-b", 5, 15*time.Second)
 
 	// Both active consumers crossed 5 → sealed.
-	assertSealed(t, a.store, 5, true)
+	assertSealed(t, a.store, 5, genesisV0_1_0, true)
 
 	// Introduce a third REQUIRED consumer that never processes (cursor stays 0).
 	// The required set now includes it, so H=5 is no longer sealed (AND-gating).
 	if err := a.store.RegisterConsumer(context.Background(), "noop-c", "v0.1.0"); err != nil {
 		t.Fatal(err)
 	}
-	assertSealed(t, a.store, 5, false)
+	assertSealed(t, a.store, 5, genesisV0_1_0, false)
 }
 
 func TestE2EKillAndRestartResumes(t *testing.T) { // spec test 3 (end-to-end)

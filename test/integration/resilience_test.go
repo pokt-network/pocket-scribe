@@ -176,7 +176,7 @@ func TestMultipleConsumersCrashRecover(t *testing.T) { // spec test 12
 	publishHeights(t, 1, 2, 3, 4, 5)
 	waitCursor(t, a.store, "noop-a", 5, 15*time.Second)
 	waitCursor(t, b.store, "noop-b", 5, 15*time.Second)
-	assertSealed(t, a.store, 5, true)
+	assertSealed(t, a.store, 5, genesisV0_1_0, true)
 
 	// Both crash simultaneously.
 	a.stop()
@@ -188,7 +188,7 @@ func TestMultipleConsumersCrashRecover(t *testing.T) { // spec test 12
 	b2 := startRuntime(t, stream, "noop-b")
 	waitCursor(t, a2.store, "noop-a", 8, 15*time.Second)
 	waitCursor(t, b2.store, "noop-b", 8, 15*time.Second)
-	assertSealed(t, a2.store, 8, true)
+	assertSealed(t, a2.store, 8, genesisV0_1_0, true)
 
 	if got := processedCount(t, "noop-a"); got != 8 {
 		t.Fatalf("noop-a processed rows = %d, want 8", got)

@@ -5,21 +5,30 @@ import (
 	"fmt"
 )
 
-// IsSealed reports whether height is sealed: every consumer in the required set
-// (Phase B: all active consumers) has consolidated_up_to >= height, and the
-// required set is non-empty. Derived at query time — no materialized seal row
-// in Slice 1 (a materialized block_seal is deferred to Slice 2).
-func (s *Store) IsSealed(ctx context.Context, height int64) (bool, error) {
-	var sealed bool
-	err := s.pool.QueryRow(ctx,
-		`SELECT
-		     count(*) FILTER (WHERE r.active) > 0
-		     AND count(*) FILTER (WHERE r.active AND COALESCE(c.consolidated_up_to, 0) < $1) = 0
-		 FROM consumer_registry r
-		 LEFT JOIN consumer_consolidation c ON c.consumer_name = r.consumer_name`,
-		height).Scan(&sealed)
+// IsSealed reports whether height is sealed: every consumer in
+// required_set(height) has consolidated_up_to >= height, and the required set
+// is non-empty. The non-empty guard is kept from Phase B deliberately (a
+// height nobody is required to process must not read as "sealed" on a fresh
+// database) — a divergence from a vacuous-truth reading of spec §4.10,
+// matching spec tests 7/8 behavior. Derived at query time — no materialized
+// seal row in Slice 1.
+func (s *Store) IsSealed(ctx context.Context, height int64, genesisVersion string) (bool, error) {
+	required, err := s.RequiredSet(ctx, height, genesisVersion)
 	if err != nil {
 		return false, fmt.Errorf("is_sealed(%d): %w", height, err)
 	}
-	return sealed, nil
+	if len(required) == 0 {
+		return false, nil
+	}
+	var lagging int
+	err = s.pool.QueryRow(ctx,
+		`SELECT count(*)
+		 FROM unnest($1::text[]) AS r(consumer_name)
+		 LEFT JOIN consumer_consolidation c USING (consumer_name)
+		 WHERE COALESCE(c.consolidated_up_to, 0) < $2`,
+		required, height).Scan(&lagging)
+	if err != nil {
+		return false, fmt.Errorf("is_sealed(%d): %w", height, err)
+	}
+	return lagging == 0, nil
 }

@@ -586,7 +586,7 @@ func TestSupplierANDSealWithQuietHeights(t *testing.T) { // spec test 21
 	// Step 3: wait for block cursor to reach 3, then assert NOT sealed because
 	// supplier is registered but its cursor is still 0.
 	waitCursor(t, blockRH.store, "block", 3, 20*time.Second)
-	assertSealed(t, blockRH.store, 3, false)
+	assertSealed(t, blockRH.store, 3, genesisV0_1_0, false)
 
 	// Step 4: restart the supplier runtime against the same durable
 	// (DeliverAllPolicy → redelivers from seq 0; dedup absorbs duplicates
@@ -597,7 +597,7 @@ func TestSupplierANDSealWithQuietHeights(t *testing.T) { // spec test 21
 	waitCursor(t, supplierRH2.store, "supplier", 3, 30*time.Second)
 
 	// Step 5b: sealed now — both consumers past height 3.
-	assertSealed(t, supplierRH2.store, 3, true)
+	assertSealed(t, supplierRH2.store, 3, genesisV0_1_0, true)
 
 	// Step 5c: quiet heights produced zero data rows (decisions 4 + ADR-024).
 	ctx := context.Background()

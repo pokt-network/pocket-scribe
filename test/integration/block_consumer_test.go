@@ -234,7 +234,7 @@ func TestBlockConsumerANDSeal(t *testing.T) { // spec test 16b
 	waitCursor(t, noopRH.store, "noop-a", 3, 15*time.Second)
 
 	// Both required consumers passed height 3 → it must be sealed.
-	assertSealed(t, blockRH.store, 3, true)
+	assertSealed(t, blockRH.store, 3, genesisV0_1_0, true)
 }
 
 // Test 17: self-heal — bootstrap heights 1 and 3 first (gap at 2), assert
