@@ -9,5 +9,6 @@ func NewCmd() *cobra.Command {
 		Short: "Run a module consumer (reads NATS, writes Postgres)",
 	}
 	cmd.AddCommand(newBlockCmd())
+	cmd.AddCommand(newSupplierCmd())
 	return cmd
 }
