@@ -1,6 +1,7 @@
 package v0_1_0
 
 import (
+	"bytes"
 	"testing"
 
 	"cosmossdk.io/math"
@@ -50,5 +51,24 @@ func TestDecodeSupplierEventSkipsUnknownType(t *testing.T) {
 	got, err := Decoder{}.DecodeSupplierEvent("pocket.proof.EventProofSubmitted", nil)
 	if got != nil || err != nil {
 		t.Fatalf("want (nil,nil), got %+v, %v", got, err)
+	}
+}
+
+// TestMarshalSCUV010 exercises the marshalSCU helper — the v0_1_0 SCU has a
+// Services slice (not a single Service), so the JSON output must contain the
+// service_id field of the first entry.
+func TestMarshalSCUV010(t *testing.T) {
+	scu := &shared.ServiceConfigUpdate{
+		EffectiveBlockHeight: 42,
+		Services: []*shared.SupplierServiceConfig{{
+			ServiceId: "svc0",
+		}},
+	}
+	got, err := marshalSCU(scu)
+	if err != nil {
+		t.Fatalf("marshalSCU: %v", err)
+	}
+	if !bytes.Contains(got, []byte("svc0")) {
+		t.Fatalf("marshalSCU JSON does not contain service id: %s", got)
 	}
 }

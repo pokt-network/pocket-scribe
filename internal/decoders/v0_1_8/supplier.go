@@ -167,15 +167,19 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 		if err := scu.Unmarshal(value); err != nil {
 			return nil, fmt.Errorf("v0_1_8 ServiceConfigUpdate KV: %w", err)
 		}
-		var svcJSON []byte
-		if scu.Service != nil {
-			j, err := decoders.MarshalJSONPBSlice([]*shared.SupplierServiceConfig{scu.Service})
-			if err != nil {
-				return nil, err
-			}
-			// single-element array → unwrap to the object
-			svcJSON = j[1 : len(j)-1]
+		// A non-deleted SCU KV record must have a non-nil Service field; a nil
+		// Service would write an empty string to the NOT NULL service_id column
+		// (migration 0040) and signals a malformed or truncated record.
+		if scu.Service == nil {
+			return nil, fmt.Errorf("v0_1_8 ServiceConfigUpdate KV: nil Service field on non-deleted record (key %q)", key)
 		}
+		var svcJSON []byte
+		j, err := decoders.MarshalJSONPBSlice([]*shared.SupplierServiceConfig{scu.Service})
+		if err != nil {
+			return nil, err
+		}
+		// single-element array → unwrap to the object
+		svcJSON = j[1 : len(j)-1]
 		return &types.SupplierKVRecord{ServiceConfigUpdate: &types.ServiceConfigUpdateSnapshot{
 			OperatorAddress:    scu.OperatorAddress,
 			ServiceID:          scu.Service.GetServiceId(),
