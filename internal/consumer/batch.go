@@ -152,7 +152,12 @@ func (r *BatchRuntime) handle(ctx context.Context, msg jetstream.Msg) error {
 			msgID = hdr
 		}
 		if b.seen[msgID] {
-			_ = msg.Ack() // redelivery of an already-buffered message
+			// Redelivery of an already-buffered message (AckWait expired while
+			// the height is still open). NEVER ack here: acking ANY delivery
+			// acks the MESSAGE (invariant 5 — a crash before the flush commit
+			// would then lose it permanently). InProgress resets the ack timer
+			// so the server pauses redelivery while we wait for the fence.
+			_ = msg.InProgress()
 			return nil
 		}
 		b.seen[msgID] = true
