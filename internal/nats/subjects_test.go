@@ -126,6 +126,44 @@ func TestHeightFromKVSubjectErrors(t *testing.T) {
 	}
 }
 
+// TestIsSubjectClassifiers verifies the Is*Subject helpers against canonical
+// subjects from each grammar, plus a negative case for each (rule 7).
+func TestIsSubjectClassifiers(t *testing.T) {
+	blockS := BlockSubject(42)
+	txS := TxSubject(42, 3)
+	eventS := EventSubject("pocket.supplier.EventSupplierStaked", 42)
+	kvS := KVSubject("supplier", 42)
+	unknown := "pokt.unknown.42"
+
+	cases := []struct {
+		subject string
+		block   bool
+		tx      bool
+		event   bool
+		kv      bool
+	}{
+		{blockS, true, false, false, false},
+		{txS, false, true, false, false},
+		{eventS, false, false, true, false},
+		{kvS, false, false, false, true},
+		{unknown, false, false, false, false},
+	}
+	for _, c := range cases {
+		if got := IsBlockSubject(c.subject); got != c.block {
+			t.Errorf("IsBlockSubject(%q) = %v, want %v", c.subject, got, c.block)
+		}
+		if got := IsTxSubject(c.subject); got != c.tx {
+			t.Errorf("IsTxSubject(%q) = %v, want %v", c.subject, got, c.tx)
+		}
+		if got := IsEventSubject(c.subject); got != c.event {
+			t.Errorf("IsEventSubject(%q) = %v, want %v", c.subject, got, c.event)
+		}
+		if got := IsKVSubject(c.subject); got != c.kv {
+			t.Errorf("IsKVSubject(%q) = %v, want %v", c.subject, got, c.kv)
+		}
+	}
+}
+
 func TestHeightFromSubjectDispatch(t *testing.T) {
 	cases := []struct {
 		subject string

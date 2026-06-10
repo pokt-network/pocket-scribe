@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -124,7 +123,7 @@ func (r *BatchRuntime) consume(ctx context.Context) error {
 		// (lines 175-176).  Acking fan-out messages here — before commit — would
 		// violate Invariant 5: a crash after the early ack but before the envelope
 		// arrives would permanently lose those rows (no redelivery, no DB row).
-		if strings.HasPrefix(msg.Subject(), "pokt.block.") {
+		if natsx.IsBlockSubject(msg.Subject()) {
 			_ = msg.Ack()
 		}
 	}
@@ -139,7 +138,7 @@ func (r *BatchRuntime) handle(ctx context.Context, msg jetstream.Msg) error {
 		r.logger.Error("bad subject; terminating", "consumer", id, "subject", subject)
 		return nil //nolint:nilerr // terminated, not propagatable
 	}
-	if !strings.HasPrefix(subject, "pokt.block.") {
+	if !natsx.IsBlockSubject(subject) {
 		b := r.buf[height]
 		if b == nil {
 			b = &heightBuf{seen: map[string]bool{}}

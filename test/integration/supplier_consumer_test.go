@@ -180,6 +180,16 @@ type supplierExpected struct {
 	} `json:"events_staked"`
 	HistoryOperators []string `json:"history_operators"`
 	SCURowsMin       int      `json:"scu_rows_min"`
+	// Unbonding fields (v0.1.28 era fixture block-295476):
+	MsgUnstake []struct {
+		TxIndex         int    `json:"tx_index"`
+		OperatorAddress string `json:"operator_address"`
+	} `json:"msg_unstake"`
+	EventsUnbondingBegin []struct {
+		TxIndex            int   `json:"tx_index"`
+		SessionEndHeight   int64 `json:"session_end_height"`
+		UnbondingEndHeight int64 `json:"unbonding_end_height"`
+	} `json:"events_unbonding_begin"`
 }
 
 // loadSupplierExpected reads the supplier section from a fixture expected.json.
@@ -607,5 +617,183 @@ func TestSupplierANDSealWithQuietHeights(t *testing.T) { // spec test 21
 	}
 	if msgStakeCount != 0 {
 		t.Errorf("msg_stake_supplier rows at quiet heights = %d, want 0", msgStakeCount)
+	}
+}
+
+// ── unbonding fixture query helpers ──────────────────────────────────────────
+
+type msgUnstakeRow struct {
+	TxIndex         int32
+	OperatorAddress string
+	DecodedBy       int16
+}
+
+func queryMsgUnstake(t *testing.T, s *store.Store, height int64) []msgUnstakeRow {
+	t.Helper()
+	ctx := context.Background()
+	rows, err := s.Pool().Query(ctx,
+		`SELECT tx_index, operator_address, decoded_by_version
+		 FROM msg_unstake_supplier WHERE block_height=$1 ORDER BY tx_index`, height)
+	if err != nil {
+		t.Fatalf("query msg_unstake_supplier h=%d: %v", height, err)
+	}
+	defer rows.Close()
+	var out []msgUnstakeRow
+	for rows.Next() {
+		var r msgUnstakeRow
+		if err := rows.Scan(&r.TxIndex, &r.OperatorAddress, &r.DecodedBy); err != nil {
+			t.Fatalf("scan msg_unstake_supplier: %v", err)
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows err msg_unstake_supplier h=%d: %v", height, err)
+	}
+	return out
+}
+
+type eventUnbondingBeginRow struct {
+	TxIndex            int32
+	SessionEndHeight   int64
+	UnbondingEndHeight int64
+	SupplierJSON       []byte // non-nil: unbonding events carry the supplier embed across all versions
+}
+
+func queryEventUnbondingBegin(t *testing.T, s *store.Store, height int64) []eventUnbondingBeginRow {
+	t.Helper()
+	ctx := context.Background()
+	rows, err := s.Pool().Query(ctx,
+		`SELECT tx_index, session_end_height, unbonding_end_height, supplier
+		 FROM event_supplier_unbonding_begin WHERE block_height=$1 ORDER BY tx_index`, height)
+	if err != nil {
+		t.Fatalf("query event_supplier_unbonding_begin h=%d: %v", height, err)
+	}
+	defer rows.Close()
+	var out []eventUnbondingBeginRow
+	for rows.Next() {
+		var r eventUnbondingBeginRow
+		if err := rows.Scan(&r.TxIndex, &r.SessionEndHeight, &r.UnbondingEndHeight, &r.SupplierJSON); err != nil {
+			t.Fatalf("scan event_supplier_unbonding_begin: %v", err)
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows err event_supplier_unbonding_begin h=%d: %v", height, err)
+	}
+	return out
+}
+
+// Test 23: real unstake + unbonding fixture (v0.1.28 era, height 295476).
+// Asserts:
+//   - msg_unstake_supplier: 5 rows with correct operator_addresses.
+//   - event_supplier_unbonding_begin: 5 rows with session_end_height=295500,
+//     unbonding_end_height=298920, supplier IS NOT NULL (embed always present).
+//   - supplier_history: 5 dehydrated rows (one per operator, services IS NULL).
+//   - scu_rows_min: ≥ 40 (real KV fan-out for 5 unstaking suppliers).
+func TestSupplierUnbondingFixture(t *testing.T) { // spec test 23
+	pg.Reset(t)
+	stream := freshStream(t)
+	ids := loadDecoderVersionIDs(t)
+
+	blockRH := startBlockRuntime(t, stream, "block")
+	supplierRH := startSupplierRuntime(t, stream, ids)
+
+	bootstrapHeights(t, 295476)
+
+	waitHasProcessed(t, blockRH.store, "block", 295476, 30*time.Second)
+	waitHasProcessed(t, supplierRH.store, "supplier", 295476, 60*time.Second)
+
+	want := loadSupplierExpected(t, "../../test/fixtures/v0_1_28/block-295476-expected.json")
+	wantDecoderID, ok := ids["v0.1.28"]
+	if !ok {
+		t.Fatalf("decoder_version v0.1.28 not in DB")
+	}
+
+	// Assert msg_unstake_supplier rows.
+	gotUnstake := queryMsgUnstake(t, supplierRH.store, 295476)
+	if len(gotUnstake) != len(want.MsgUnstake) {
+		t.Fatalf("msg_unstake_supplier count = %d, want %d", len(gotUnstake), len(want.MsgUnstake))
+	}
+	for i, row := range gotUnstake {
+		w := want.MsgUnstake[i]
+		if int(row.TxIndex) != w.TxIndex {
+			t.Errorf("unstake[%d]: tx_index = %d, want %d", i, row.TxIndex, w.TxIndex)
+		}
+		if row.OperatorAddress != w.OperatorAddress {
+			t.Errorf("unstake[%d]: operator_address = %q, want %q", i, row.OperatorAddress, w.OperatorAddress)
+		}
+		if row.DecodedBy != wantDecoderID {
+			t.Errorf("unstake[%d]: decoded_by_version = %d, want %d (v0.1.28)", i, row.DecodedBy, wantDecoderID)
+		}
+	}
+
+	// Assert event_supplier_unbonding_begin rows.
+	gotUB := queryEventUnbondingBegin(t, supplierRH.store, 295476)
+	if len(gotUB) != len(want.EventsUnbondingBegin) {
+		t.Fatalf("event_supplier_unbonding_begin count = %d, want %d", len(gotUB), len(want.EventsUnbondingBegin))
+	}
+	for i, row := range gotUB {
+		w := want.EventsUnbondingBegin[i]
+		if int(row.TxIndex) != w.TxIndex {
+			t.Errorf("unbonding_begin[%d]: tx_index = %d, want %d", i, row.TxIndex, w.TxIndex)
+		}
+		if row.SessionEndHeight != w.SessionEndHeight {
+			t.Errorf("unbonding_begin[%d]: session_end_height = %d, want %d", i, row.SessionEndHeight, w.SessionEndHeight)
+		}
+		if row.UnbondingEndHeight != w.UnbondingEndHeight {
+			t.Errorf("unbonding_begin[%d]: unbonding_end_height = %d, want %d", i, row.UnbondingEndHeight, w.UnbondingEndHeight)
+		}
+		// Supplier embed MUST be non-null (unbonding events carry it across ALL versions).
+		if len(row.SupplierJSON) == 0 {
+			t.Errorf("unbonding_begin[%d]: supplier embed IS NULL, want non-null (event carries full supplier)", i)
+		}
+	}
+
+	// Assert supplier_history rows.
+	ctx := context.Background()
+	histRows, err := supplierRH.store.Pool().Query(ctx,
+		`SELECT operator_address, services FROM supplier_history
+		 WHERE block_height=295476 ORDER BY operator_address`)
+	if err != nil {
+		t.Fatalf("query supplier_history h=295476: %v", err)
+	}
+	var gotOps []string
+	nonNullSvc := 0
+	for histRows.Next() {
+		var op string
+		var svc []byte
+		if err := histRows.Scan(&op, &svc); err != nil {
+			t.Fatalf("scan supplier_history: %v", err)
+		}
+		gotOps = append(gotOps, op)
+		if len(svc) > 0 {
+			nonNullSvc++
+		}
+	}
+	histRows.Close()
+	if histRows.Err() != nil {
+		t.Fatalf("supplier_history rows err: %v", histRows.Err())
+	}
+	if len(gotOps) != len(want.HistoryOperators) {
+		t.Errorf("supplier_history count = %d, want %d", len(gotOps), len(want.HistoryOperators))
+	}
+	for i := range want.HistoryOperators {
+		if i < len(gotOps) && gotOps[i] != want.HistoryOperators[i] {
+			t.Errorf("supplier_history[%d]: operator = %q, want %q", i, gotOps[i], want.HistoryOperators[i])
+		}
+	}
+	if nonNullSvc > 0 {
+		t.Errorf("supplier_history has %d non-NULL services rows (dehydrated era: must be NULL)", nonNullSvc)
+	}
+
+	// Assert SCU rows.
+	var scuCount int
+	if err := supplierRH.store.Pool().QueryRow(ctx,
+		`SELECT count(*) FROM supplier_service_config_update_history WHERE block_height=295476`,
+	).Scan(&scuCount); err != nil {
+		t.Fatalf("count SCU h=295476: %v", err)
+	}
+	if scuCount < want.SCURowsMin {
+		t.Errorf("SCU rows = %d, want >= %d", scuCount, want.SCURowsMin)
 	}
 }

@@ -142,6 +142,20 @@ func HeightFromKVSubject(subject string) (int64, error) {
 	return h, nil
 }
 
+// ── subject classification helpers (rule 7: single source of truth) ─────────
+
+// IsBlockSubject reports whether s is a pokt.block.{H} subject.
+func IsBlockSubject(s string) bool { return strings.HasPrefix(s, blockPrefix) }
+
+// IsTxSubject reports whether s is a pokt.tx.{H}.{idx} subject.
+func IsTxSubject(s string) bool { return strings.HasPrefix(s, txPrefix) }
+
+// IsEventSubject reports whether s is a pokt.events.{token}.{H} subject.
+func IsEventSubject(s string) bool { return strings.HasPrefix(s, eventPrefix) }
+
+// IsKVSubject reports whether s is a pokt.kv.{store}.{H} subject.
+func IsKVSubject(s string) bool { return strings.HasPrefix(s, kvPrefix) }
+
 // HeightFromSubject extracts the height from any PocketScribe subject grammar
 // (block / tx / events / kv). Single dispatch point for the consumer runtimes.
 func HeightFromSubject(subject string) (int64, error) {
