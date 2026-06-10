@@ -10,6 +10,7 @@ modules:
   - path: third_party/proto/poktroll/v0_1_30
   - path: third_party/proto/cosmos-sdk/v0_53_0
   - path: third_party/proto/wkt
+  - path: internal/proto
 lint:
   use:
     - STANDARD
