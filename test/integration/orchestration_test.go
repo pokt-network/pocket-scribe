@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	runtime "github.com/pokt-network/pocketscribe/internal/consumer"
+	"github.com/pokt-network/pocketscribe/internal/config"
 	"github.com/pokt-network/pocketscribe/internal/metrics"
 	natsx "github.com/pokt-network/pocketscribe/internal/nats"
 	"github.com/pokt-network/pocketscribe/internal/store"
@@ -23,7 +24,7 @@ import (
 // spelling on purpose — exercises protover normalization at every call site.
 const genesisV0_1_0 = "v0_1_0"
 
-func requiredSet(t *testing.T, h int64, genesis string) []string { //nolint:unparam // genesis varies in multi-network tests (Task 7)
+func requiredSet(t *testing.T, h int64, genesis string) []string {
 	t.Helper()
 	s := storeFrom(t)
 	names, err := s.RequiredSet(context.Background(), h, genesis)
@@ -173,4 +174,74 @@ func TestConsumerWakeup(t *testing.T) { // spec test 24 (§11.1)
 	if elapsed := time.Since(start); elapsed < window-time.Second {
 		t.Fatalf("run 2 returned after %v — consumer did not wake (exited as dormant)", elapsed)
 	}
+}
+
+func TestMultiNetworkRequiredSet(t *testing.T) { // spec test 25 (§11.1)
+	pg.Reset(t)
+	ctx := context.Background()
+	s := storeFrom(t)
+
+	// The REAL network configs — if their genesis versions drift this test
+	// must fail loud, not silently keep passing.
+	mainnet, err := config.Load("../../configs/networks/mainnet.yaml")
+	if err != nil {
+		t.Fatalf("load mainnet.yaml: %v", err)
+	}
+	localnet, err := config.Load("../../configs/networks/localnet.yaml")
+	if err != nil {
+		t.Fatalf("load localnet.yaml: %v", err)
+	}
+	if mainnet.Network.GenesisDecoderVersion == localnet.Network.GenesisDecoderVersion {
+		t.Fatal("test premise broken: mainnet and localnet genesis versions are equal")
+	}
+
+	// Same consumer code, same registration…
+	mustRegister(t, s, "midver", "v0.1.20")
+	// …mainnet state: v0.1.20 applied at 135297 (what ps sync-upgrades writes).
+	seedUpgrade(t, s, "v0.1.20", 135297, "v0_1_20")
+
+	// Mainnet (genesis v0_1_0): valid only from the upgrade height.
+	h, err := s.ConsumerFirstValidHeight(ctx, "v0.1.20", mainnet.Network.GenesisDecoderVersion)
+	if err != nil || h != 135297 {
+		t.Fatalf("mainnet first_valid = %d, %v; want 135297", h, err)
+	}
+	if got := requiredSet(t, 1, mainnet.Network.GenesisDecoderVersion); slices.Contains(got, "midver") {
+		t.Fatalf("mainnet required_set(1) must exclude midver: %v", got)
+	}
+
+	// Localnet (genesis v0_1_33 ≥ v0.1.20): valid from height 1, no upgrade row needed.
+	h, err = s.ConsumerFirstValidHeight(ctx, "v0.1.20", localnet.Network.GenesisDecoderVersion)
+	if err != nil || h != 1 {
+		t.Fatalf("localnet first_valid = %d, %v; want 1", h, err)
+	}
+	if got := requiredSet(t, 1, localnet.Network.GenesisDecoderVersion); !slices.Contains(got, "midver") {
+		t.Fatalf("localnet required_set(1) must include midver: %v", got)
+	}
+}
+
+func TestBackfillSemantics(t *testing.T) { // spec test 26 (§11.1)
+	pg.Reset(t)
+	s := storeFrom(t)
+
+	// Established network state: one consumer, consolidated far ahead.
+	mustRegister(t, s, "blocklike", "v0.1.0")
+	setConsolidation(t, "blocklike", 150000)
+	seedUpgrade(t, s, "v0.1.20", 135297, "v0_1_20")
+	assertSealed(t, s, 150000, genesisV0_1_0, true)
+
+	// A consumer added "after the fact": its duty starts at first_valid_height
+	// (135297) — it has no consolidation row yet (cursor effectively starts there).
+	mustRegister(t, s, "late", "v0.1.20")
+
+	// Seals before its first_valid are unaffected…
+	assertSealed(t, s, 135296, genesisV0_1_0, true)
+	// …seals at/after pause until the backfill catches up…
+	assertSealed(t, s, 135297, genesisV0_1_0, false)
+	assertSealed(t, s, 150000, genesisV0_1_0, false)
+	// …and resume exactly as far as the late consumer has consolidated.
+	setConsolidation(t, "late", 140000)
+	assertSealed(t, s, 140000, genesisV0_1_0, true)
+	assertSealed(t, s, 150000, genesisV0_1_0, false)
+	setConsolidation(t, "late", 150000)
+	assertSealed(t, s, 150000, genesisV0_1_0, true)
 }
