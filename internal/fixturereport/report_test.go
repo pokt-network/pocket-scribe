@@ -280,6 +280,54 @@ func TestReportKVUnmarshalError(t *testing.T) {
 	}
 }
 
+// TestReportUnstakeUnbonding pins the unstake/unbonding decode path against
+// the real v0.1.28-era fixture (block 295476: 5 MsgUnstakeSupplier txs, each
+// emitting an EventSupplierUnbondingBegin). The Phase E integration test
+// (TestSupplierUnbondingFixture) loads this fixture's expected.json and
+// asserts the same fields against the DB — Report MUST keep producing them.
+func TestReportUnstakeUnbonding(t *testing.T) {
+	r := mustRouter(t)
+	dir := "../../test/fixtures/v0_1_28"
+	const h = 295476
+	meta, err := os.ReadFile(fxPath(dir, h, "meta"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(fxPath(dir, h, "data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Report(r, meta, data)
+	if err != nil {
+		t.Fatalf("Report(%d): %v", h, err)
+	}
+	if got.Supplier == nil {
+		t.Fatal("supplier section missing")
+	}
+	sup := got.Supplier
+	if len(sup.MsgUnstake) != 5 {
+		t.Fatalf("msg_unstake count = %d, want 5", len(sup.MsgUnstake))
+	}
+	// tx 0 unstakes pokt1h0pk... (order is tx order, not operator order).
+	if sup.MsgUnstake[0].TxIndex != 0 || sup.MsgUnstake[0].OperatorAddress != "pokt1h0pk9t8ezphtt3gzmt00960j3vsn7peywf6pwd" {
+		t.Fatalf("msg_unstake[0] = %+v", sup.MsgUnstake[0])
+	}
+	if len(sup.EventsUnbondingBegin) != 5 {
+		t.Fatalf("events_unbonding_begin count = %d, want 5", len(sup.EventsUnbondingBegin))
+	}
+	for i, ev := range sup.EventsUnbondingBegin {
+		if ev.TxIndex != i {
+			t.Errorf("events_unbonding_begin[%d]: tx_index = %d", i, ev.TxIndex)
+		}
+		if ev.SessionEndHeight != 295500 {
+			t.Errorf("events_unbonding_begin[%d]: session_end_height = %d, want 295500", i, ev.SessionEndHeight)
+		}
+		if ev.UnbondingEndHeight != 298920 {
+			t.Errorf("events_unbonding_begin[%d]: unbonding_end_height = %d, want 298920", i, ev.UnbondingEndHeight)
+		}
+	}
+}
+
 func TestMainnetUpgradesComplete(t *testing.T) {
 	ups := MainnetUpgrades()
 	if len(ups) != 31 {

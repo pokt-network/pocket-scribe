@@ -28,12 +28,28 @@ type EventStakedResult struct {
 	SessionEndHeight int64 `json:"session_end_height"`
 }
 
+// MsgUnstakeResult holds a decoded MsgUnstakeSupplier from a single transaction.
+type MsgUnstakeResult struct {
+	TxIndex         int    `json:"tx_index"`
+	OperatorAddress string `json:"operator_address"`
+}
+
+// EventUnbondingBeginResult holds a decoded EventSupplierUnbondingBegin from a
+// single transaction.
+type EventUnbondingBeginResult struct {
+	TxIndex            int   `json:"tx_index"`
+	SessionEndHeight   int64 `json:"session_end_height"`
+	UnbondingEndHeight int64 `json:"unbonding_end_height"`
+}
+
 // SupplierResult summarises all supplier activity found in the block.
 type SupplierResult struct {
-	MsgStake         []MsgStakeResult    `json:"msg_stake,omitempty"`
-	EventsStaked     []EventStakedResult `json:"events_staked,omitempty"`
-	HistoryOperators []string            `json:"history_operators,omitempty"`
-	SCURowsMin       int                 `json:"scu_rows_min"`
+	MsgStake             []MsgStakeResult            `json:"msg_stake,omitempty"`
+	EventsStaked         []EventStakedResult         `json:"events_staked,omitempty"`
+	HistoryOperators     []string                    `json:"history_operators,omitempty"`
+	SCURowsMin           int                         `json:"scu_rows_min"`
+	MsgUnstake           []MsgUnstakeResult          `json:"msg_unstake,omitempty"`
+	EventsUnbondingBegin []EventUnbondingBeginResult `json:"events_unbonding_begin,omitempty"`
 }
 
 // Result is the decoded summary of one captured FilePlugin block fixture.
@@ -118,6 +134,12 @@ func Report(r router.Router, metaBytes, dataBytes []byte) (*Result, error) {
 					StakeDenom:      msg.Stake.StakeDenom,
 				})
 			}
+			if msg.Unstake != nil {
+				sup.MsgUnstake = append(sup.MsgUnstake, MsgUnstakeResult{
+					TxIndex:         txIdx,
+					OperatorAddress: msg.Unstake.OperatorAddress,
+				})
+			}
 		}
 	}
 
@@ -145,6 +167,13 @@ func Report(r router.Router, metaBytes, dataBytes []byte) (*Result, error) {
 				sup.EventsStaked = append(sup.EventsStaked, EventStakedResult{
 					TxIndex:          txIdx,
 					SessionEndHeight: evResult.Staked.SessionEndHeight,
+				})
+			}
+			if evResult.UnbondingBegin != nil {
+				sup.EventsUnbondingBegin = append(sup.EventsUnbondingBegin, EventUnbondingBeginResult{
+					TxIndex:            txIdx,
+					SessionEndHeight:   evResult.UnbondingBegin.SessionEndHeight,
+					UnbondingEndHeight: evResult.UnbondingBegin.UnbondingEndHeight,
 				})
 			}
 		}
@@ -187,7 +216,8 @@ func Report(r router.Router, metaBytes, dataBytes []byte) (*Result, error) {
 	sort.Strings(sup.HistoryOperators)
 	sup.SCURowsMin = scuCount
 
-	if len(sup.MsgStake) > 0 || len(sup.EventsStaked) > 0 || len(sup.HistoryOperators) > 0 || sup.SCURowsMin > 0 {
+	if len(sup.MsgStake) > 0 || len(sup.EventsStaked) > 0 || len(sup.HistoryOperators) > 0 ||
+		sup.SCURowsMin > 0 || len(sup.MsgUnstake) > 0 || len(sup.EventsUnbondingBegin) > 0 {
 		result.Supplier = sup
 	}
 
