@@ -102,7 +102,7 @@ Replace [Pocketdex](https://github.com/pokt-network/pocketdex) (SubQuery + Node.
   3. **Golden / contract** — fixtures of real captured chain data, decode and assert. Per proto version. CI on every PR.
   4. **Integration** — full stack in testcontainers (sidecar + NATS + consumers + DB). No real node. ~minutes.
   5. **E2E** — local poktroll node + full stack. Slowest; nightly + pre-release.
-- Coverage target: 80% on `internal/`, 100% on decoders (mandatory because correctness is verifiable from chain).
+- Coverage target: 90% on `internal/`, 100% on decoders (mandatory because correctness is verifiable from chain).
 - **Never** merge a bug fix without a test that reproduces the bug.
 - **Never** merge a new feature without tests for happy path + at least one edge case.
 
