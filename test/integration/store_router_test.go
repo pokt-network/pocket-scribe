@@ -25,9 +25,9 @@ func minRegistry() map[string]decoders.Decoder {
 	}
 }
 
-// seedUpgrade upserts one upgrade row directly via pool (bypasses store to keep
-// test helpers self-contained).
-func seedUpgrade(t *testing.T, name string, height int64, decoderVersion string) {
+// seedUpgradeRaw upserts one upgrade row directly via pool (bypasses store to keep
+// test helpers self-contained). Local to router tests; broader tests use seedUpgrade.
+func seedUpgradeRaw(t *testing.T, name string, height int64, decoderVersion string) {
 	t.Helper()
 	ctx := context.Background()
 	_, err := pg.Pool.Exec(ctx,
@@ -39,7 +39,7 @@ func seedUpgrade(t *testing.T, name string, height int64, decoderVersion string)
 		   decoder_version=EXCLUDED.decoder_version`,
 		name, height, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), decoderVersion)
 	if err != nil {
-		t.Fatalf("seedUpgrade %s: %v", name, err)
+		t.Fatalf("seedUpgradeRaw %s: %v", name, err)
 	}
 }
 
@@ -51,7 +51,7 @@ func TestNewDBRouter_ConstructsFromSeededUpgrades(t *testing.T) {
 	pg.Reset(t)
 	ctx := context.Background()
 
-	seedUpgrade(t, "v0.1.28", 287932, "v0_1_28")
+	seedUpgradeRaw(t, "v0.1.28", 287932, "v0_1_28")
 
 	s := storeFrom(t)
 	reg := minRegistry()
@@ -114,7 +114,7 @@ func TestDBRouter_RefreshPicksUpNewRows(t *testing.T) {
 	}
 
 	// Seed a new upgrade row and call Refresh.
-	seedUpgrade(t, "v0.1.28", 287932, "v0_1_28")
+	seedUpgradeRaw(t, "v0.1.28", 287932, "v0_1_28")
 	if err := r.Refresh(ctx); err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -30,4 +31,69 @@ func firstValidHeight(firstValid, genesis string, upgradeHeights map[string]int6
 		return h, nil
 	}
 	return DormantHeight, nil
+}
+
+// upgradeHeightsByVersion loads the upgrades table keyed by normalized
+// upgrade name (upgrades.name is the chain's dotted tag, e.g. "v0.1.20").
+func (s *Store) upgradeHeightsByVersion(ctx context.Context) (map[string]int64, error) {
+	ups, err := s.ListUpgrades(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]int64, len(ups))
+	for _, u := range ups {
+		n, err := protover.Normalize(u.Name)
+		if err != nil {
+			return nil, fmt.Errorf("upgrades row %q: %w", u.Name, err)
+		}
+		m[n] = u.AppliedAtHeight
+	}
+	return m, nil
+}
+
+// ConsumerFirstValidHeight resolves spec §4.10 consumer_first_valid_height
+// for one version against this network (genesis + upgrades table). Returns
+// DormantHeight when the version was never applied and is above genesis.
+func (s *Store) ConsumerFirstValidHeight(ctx context.Context, firstValidVersion, genesisVersion string) (int64, error) {
+	ups, err := s.upgradeHeightsByVersion(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return firstValidHeight(firstValidVersion, genesisVersion, ups)
+}
+
+// FirstValidHeights resolves consumer_first_valid_height for every ACTIVE
+// consumer. Computed at query time — no materialization (spec §4.10).
+func (s *Store) FirstValidHeights(ctx context.Context, genesisVersion string) (map[string]int64, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT consumer_name, first_valid_version FROM consumer_registry WHERE active = true`)
+	if err != nil {
+		return nil, fmt.Errorf("query active consumers: %w", err)
+	}
+	defer rows.Close()
+	type rc struct{ name, version string }
+	var cons []rc
+	for rows.Next() {
+		var c rc
+		if err := rows.Scan(&c.name, &c.version); err != nil {
+			return nil, fmt.Errorf("scan consumer: %w", err)
+		}
+		cons = append(cons, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	ups, err := s.upgradeHeightsByVersion(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int64, len(cons))
+	for _, c := range cons {
+		h, err := firstValidHeight(c.version, genesisVersion, ups)
+		if err != nil {
+			return nil, fmt.Errorf("consumer %q: %w", c.name, err)
+		}
+		out[c.name] = h
+	}
+	return out, nil
 }
