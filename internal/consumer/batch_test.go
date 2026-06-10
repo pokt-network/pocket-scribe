@@ -75,3 +75,29 @@ func TestNewBatchRuntime(t *testing.T) {
 		t.Fatal("buf map must be initialised by NewBatchRuntime")
 	}
 }
+
+// TestBatchRuntimeMaxAckPendingConstraint documents the JetStream consumer
+// configuration constraint required by BatchRuntime's ack-after-commit protocol.
+//
+// BatchRuntime buffers ALL fan-out messages for a height WITHOUT acking them
+// until AFTER ProcessHeight commits (Invariant 5). A large block can produce
+// >1000 unacked messages in flight (e.g. block 290584 has ~15 180 supplier
+// fan-out messages). JetStream's default MaxAckPending is 1000: once that limit
+// is reached, the server stops delivering new messages. The BlockEnvelope (the
+// completeness fence, published LAST) therefore never arrives and the height
+// never processes — it silently times out.
+//
+// Fix: set MaxAckPending=-1 (unlimited) on every BatchRuntime consumer.
+// This test acts as a regression marker; the actual enforcement is in:
+//   - internal/app/consumer/supplier.go  (production consumer config)
+//   - test/integration/supplier_consumer_test.go (integration test consumer config)
+func TestBatchRuntimeMaxAckPendingConstraint(t *testing.T) {
+	// MaxAckPending=-1 is the only safe value for BatchRuntime consumers.
+	// We model this as a named constant so readers can grep for its use.
+	const unlimitedAckPending = -1
+	if unlimitedAckPending != -1 {
+		t.Fatal("MaxAckPending sentinel must be -1 (unlimited) per nats.go jetstream docs")
+	}
+	// The integration tests (18-21) are the real regression; this test preserves
+	// the documented reasoning for MaxAckPending=-1 in the codebase.
+}

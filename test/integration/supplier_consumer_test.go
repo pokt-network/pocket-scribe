@@ -89,6 +89,9 @@ func startSupplierRuntime(t *testing.T, stream jetstream.Stream, ids map[string]
 		DeliverPolicy:  jetstream.DeliverAllPolicy,
 		MaxDeliver:     -1,
 		AckWait:        60 * time.Second,
+		// MaxAckPending: unlimited — large blocks (e.g. height 290584) have >1000
+		// fan-out messages; the server default (1000) stalls envelope delivery.
+		MaxAckPending: -1,
 	})
 	if err != nil {
 		t.Fatalf("create supplier consumer: %v", err)

@@ -68,6 +68,13 @@ func newSupplierCmd() *cobra.Command {
 				DeliverPolicy:  jetstream.DeliverAllPolicy,
 				MaxDeliver:     -1,
 				AckWait:        60 * time.Second,
+				// MaxAckPending: unlimited — the batch runtime buffers an entire height's
+				// fan-out msgs (up to ~15k KV + tx + events for large blocks) before the
+				// BlockEnvelope fence arrives. The server default (1000) would stall
+				// delivery of the envelope when a block has >1000 fan-out messages,
+				// because JetStream stops sending once the in-flight unacked count
+				// exceeds MaxAckPending (ADR-024 fence invariant; see phase-e root-cause).
+				MaxAckPending: -1,
 			})
 			if err != nil {
 				return fmt.Errorf("create consumer: %w", err)
