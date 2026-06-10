@@ -1,19 +1,23 @@
-// fixtureextract is a one-off tool used during Task 11 fixture curation to
-// decode fileplugin fixture files and produce:
+// fixtureextract is a one-off tool used during fixture curation to decode
+// fileplugin fixture files and produce:
 //
 //	(default) Report supplier activity (msgs, events, KV) as JSON to stdout.
 //	(golden)  Dump raw blobs for golden tests to an output directory.
+//	(scan)    Walk all block-*-meta files in a dir, print one JSON line per height.
 //
 // Usage:
 //
 //	go run ./tools/fixtureextract <height> <fixture-dir>
 //	go run ./tools/fixtureextract golden <height> <fixture-dir> <out-dir>
+//	go run ./tools/fixtureextract scan <fixture-dir>
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 
 	storetypes "cosmossdk.io/store/types"
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -34,12 +38,57 @@ func main() {
 		runGolden(os.Args[2], os.Args[3], os.Args[4])
 		return
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "scan" {
+		if len(os.Args) != 3 {
+			fmt.Fprintln(os.Stderr, "usage: fixtureextract scan <fixture-dir>")
+			os.Exit(1)
+		}
+		runScan(os.Args[2])
+		return
+	}
 	if len(os.Args) != 3 {
 		fmt.Fprintln(os.Stderr, "usage: fixtureextract <height> <fixture-dir>")
 		fmt.Fprintln(os.Stderr, "       fixtureextract golden <height> <fixture-dir> <out-dir>")
+		fmt.Fprintln(os.Stderr, "       fixtureextract scan <fixture-dir>")
 		os.Exit(1)
 	}
 	runReport(os.Args[1], os.Args[2])
+}
+
+// runScan walks every block-{H}-meta in dir and prints one JSON line per
+// height summarizing activity — the curation index for picking fixtures.
+func runScan(dir string) {
+	r := buildRouter()
+	metas, err := filepath.Glob(filepath.Join(dir, "block-*-meta"))
+	if err != nil || len(metas) == 0 {
+		fmt.Fprintf(os.Stderr, "no block-*-meta files in %s (err=%v)\n", dir, err)
+		os.Exit(1)
+	}
+	heights := make([]int64, 0, len(metas))
+	for _, m := range metas {
+		var h int64
+		if _, err := fmt.Sscanf(filepath.Base(m), "block-%d-meta", &h); err == nil {
+			heights = append(heights, h)
+		}
+	}
+	sort.Slice(heights, func(i, j int) bool { return heights[i] < heights[j] })
+	enc := json.NewEncoder(os.Stdout)
+	for _, h := range heights {
+		metaBytes, dataBytes := readFixture(dir, h)
+		res, err := fixturereport.Report(r, metaBytes, dataBytes)
+		if err != nil {
+			_ = enc.Encode(map[string]any{"height": h, "error": err.Error()})
+			continue
+		}
+		line := map[string]any{"height": h, "tx_count": res.TxCount}
+		if s := res.Supplier; s != nil {
+			line["msg_stake"] = len(s.MsgStake)
+			line["events_staked"] = len(s.EventsStaked)
+			line["kv_operators"] = len(s.HistoryOperators)
+			line["scu_rows"] = s.SCURowsMin
+		}
+		_ = enc.Encode(line)
+	}
 }
 
 func buildRouter() router.Router {
