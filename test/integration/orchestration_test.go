@@ -13,8 +13,8 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/prometheus/client_golang/prometheus"
 
-	runtime "github.com/pokt-network/pocketscribe/internal/consumer"
 	"github.com/pokt-network/pocketscribe/internal/config"
+	runtime "github.com/pokt-network/pocketscribe/internal/consumer"
 	"github.com/pokt-network/pocketscribe/internal/metrics"
 	natsx "github.com/pokt-network/pocketscribe/internal/nats"
 	"github.com/pokt-network/pocketscribe/internal/store"

@@ -8,12 +8,12 @@ func TestNormalize(t *testing.T) {
 		wantErr  bool
 	}{
 		{in: "v0.1.30", want: "v0.1.30"},
-		{in: "v0_1_30", want: "v0.1.30"},      // decoder-dir spelling accepted
-		{in: " v0.1.0 ", want: "v0.1.0"},      // boundary trims whitespace
+		{in: "v0_1_30", want: "v0.1.30"}, // decoder-dir spelling accepted
+		{in: " v0.1.0 ", want: "v0.1.0"}, // boundary trims whitespace
 		// x/mod/semver accepts two-component versions; Canonical pads the
 		// patch. Intentional leniency — poktroll tags are always 3-component.
 		{in: "v0.1", want: "v0.1.0"},
-		{in: "0.1.30", wantErr: true},         // missing v prefix → invalid
+		{in: "0.1.30", wantErr: true}, // missing v prefix → invalid
 		{in: "v0.1.x", wantErr: true},
 		{in: "", wantErr: true},
 		{in: "garbage", wantErr: true},

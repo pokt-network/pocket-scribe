@@ -141,3 +141,9 @@ package-lock.json
 yarn.lock
 
 # Sync-from-genesis experiment artifacts (massive)
+
+# Local-only session artifacts (never commit — see CLAUDE.md rules)
+SESSION-LOG-*.md
+HANDOFF.md
+RESUME.md
+.claude/worktrees/
