@@ -35,7 +35,7 @@ func (blockStoreInserter) InsertBlock(ctx context.Context, tx pgx.Tx, h *types.B
 // startBlockRuntime mirrors startRuntime but wires the block handler instead of NoOp.
 // Each runtime gets its own prometheus.Registry to avoid MustRegister panics when
 // multiple runtimes run in the same test process.
-func startBlockRuntime(t *testing.T, stream jetstream.Stream, name string) *runtimeHandle {
+func startBlockRuntime(t *testing.T, stream jetstream.Stream, name string) *runtimeHandle { //nolint:unparam // name is always "block" by design; keeping param for structural parity with startRuntime
 	t.Helper()
 	s, err := store.New(context.Background(), pg.DSN)
 	if err != nil {
