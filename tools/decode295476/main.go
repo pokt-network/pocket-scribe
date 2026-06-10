@@ -14,8 +14,8 @@ import (
 	"sort"
 	"strings"
 
-	abci "github.com/cometbft/cometbft/abci/types"
 	storetypes "cosmossdk.io/store/types"
+	abci "github.com/cometbft/cometbft/abci/types"
 	sdktx "github.com/cosmos/cosmos-sdk/types/tx"
 
 	v0_1_28 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_28"
