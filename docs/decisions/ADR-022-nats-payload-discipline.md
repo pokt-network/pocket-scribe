@@ -1,6 +1,6 @@
 # ADR-022: NATS payload discipline (per-event fan-out, no whole-block bodies)
 
-**Status**: Proposed
+**Status**: Accepted (Slice 1 Phase E, 2026-06-09)
 **Date**: 2026-05-23
 **Authors**: Jorge Cuesta, Claude
 
@@ -27,8 +27,8 @@ A third option C — publish a thin envelope on `pokt.block.{H}` containing an S
 ```
 pokt.block.{H}                  // 1 msg = block envelope: header + hash + tx_count + event_count + chain_id
 pokt.tx.{H}.{idx}               // 1 msg = 1 tx (raw bytes + tx_result section)
-pokt.events.{eventType}.{H}     // 1 msg = 1 event (already defined in internal/nats/subjects.go)
-pokt.kv.{store}.{H}             // 1 msg = 1 StoreKVPair (already defined)
+pokt.events.{eventType}.{H}     // 1 msg = 1 event (constructors in internal/nats/subjects.go as of Phase E)
+pokt.kv.{store}.{H}             // 1 msg = 1 StoreKVPair (constructors in internal/nats/subjects.go as of Phase E)
 ```
 
 Rules:
@@ -57,6 +57,33 @@ Rules:
 - More messages on the bus. Mitigated by NATS being designed for millions msg/s and by per-consumer batching on the write side (see [ADR-024](ADR-024-consumer-batching.md)).
 - Sidecar must parse the protobuf in-process before publishing. Bounded CPU cost; not a hotpath.
 - Per-block ordering across subjects requires explicit coordination (see [ADR-025](ADR-025-indexer-coordination.md)).
+
+## Amendment (Phase E, 2026-06-09): ordering contract + envelope encoding
+
+1. **Ordering contract (load-bearing):** for every height H the sidecar publishes
+   ALL fan-out messages (`pokt.tx.*`, `pokt.events.*`, `pokt.kv.*`) BEFORE the
+   `pokt.block.{H}` envelope. JetStream delivers a durable's messages in stream
+   sequence order, so a consumer that receives the envelope for H has already
+   received every fan-out message for H matching its filters. The envelope is
+   the per-height completeness fence ADR-024 batches on. Enforced by test in
+   `test/integration/fileplugin_test.go`.
+2. **Envelope encoding:** `pocketscribe.v1.BlockEnvelope` (gogo proto,
+   `internal/proto/pocketscribe/v1/envelope.proto`): height, time_unix_nano,
+   hash, proposer_address, chain_id (from network config — NOT in the ABCI
+   header), tx_count, event_count, kv_count, published_msg_count (ADR-025).
+   The event-type subject token replaces `.` with `_`
+   (`pokt.events.pocket_supplier_EventSupplierStaked.{H}`) because `.` is the
+   NATS token separator.
+3. **Per-tx payload** is `pocketscribe.v1.TxWithResult` (raw cosmos tx bytes +
+   raw `abci.ExecTxResult` bytes). **Per-event payload** is
+   `pocketscribe.v1.EventInBlock` (raw `abci.Event` bytes + tx_index +
+   event_index; tx_index = -1 for block-level events). **Per-KV payload** is the
+   `cosmos.store.v1beta1.StoreKVPair` wire bytes (the uvarint length prefix is
+   stripped by the framing reader — payload only, never the framing).
+4. The 256 KiB / 1 MiB caps now hold by construction: the largest observed
+   single fan-out message on supplier-heavy mainnet blocks is ~19.9 KiB
+   (`docs/research/phase-e-spike-findings.md` §5). Cap *enforcement* (WARN/refuse)
+   remains Phase G (test 27).
 
 ## References
 

@@ -1,6 +1,6 @@
 # ADR-025: Indexer coordination — when is height H "fully indexed"?
 
-**Status**: Proposed
+**Status**: Accepted (Slice 1 Phase E, 2026-06-09)
 **Date**: 2026-05-23
 **Authors**: Jorge Cuesta, Claude
 
@@ -18,6 +18,8 @@ Several downstream concerns need a single answer to "is height H indexed?":
 Failure mode if coordination is missing: a consumer publishes a tokenomics aggregate referencing supplier state at H that the supplier consumer hasn't written yet. Foreign-key violation, or worse, a silent stale read if FK is deferred.
 
 ## Decision
+
+Phase E implements the envelope counts as metadata; the per-consumer count cross-check and `ps indexed-height-publisher` remain future work — per-height completeness in Phase E comes from the ADR-022 ordering contract.
 
 PocketScribe defines a single global signal: **`indexed_height = MIN(consumer_consolidation.consolidated_up_to) FOR consumers WHERE participates_in_indexed_height = TRUE`**.
 
