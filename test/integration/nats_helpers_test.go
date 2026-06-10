@@ -190,7 +190,7 @@ func waitCursor(t *testing.T, s *store.Store, name string, want int64, timeout t
 // processed_heights row for height or the timeout elapses.  Use this helper
 // (instead of waitCursor) when fixture heights are non-contiguous, because the
 // contiguous cursor never advances past a gap in the height sequence.
-func waitHasProcessed(t *testing.T, s *store.Store, name string, height int64, timeout time.Duration) {
+func waitHasProcessed(t *testing.T, s *store.Store, name string, height int64, timeout time.Duration) { //nolint:unparam // timeout is always 60s now but is kept as a parameter for future caller flexibility
 	t.Helper()
 	ctx := context.Background()
 	tick := time.NewTicker(50 * time.Millisecond)
