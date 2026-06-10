@@ -35,30 +35,6 @@ func supplierDecodedBy(t *testing.T) int16 {
 	return id
 }
 
-// txInStore opens a Postgres transaction, calls f inside it, and commits.
-// Any error from f or the commit is fatal.
-func txInStore(t *testing.T, f func(ctx context.Context, tx interface {
-	Exec(ctx context.Context, sql string, args ...any) (interface{}, error)
-})) {
-	t.Helper()
-	// Use the store's pool directly for simpler access.
-}
-
-// withTx begins a pgx transaction on the shared pool, calls f, and commits.
-func withTx(t *testing.T, f func(ctx context.Context, tx interface{})) {
-	t.Helper()
-	ctx := context.Background()
-	tx, err := pg.Pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin tx: %v", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	f(ctx, tx)
-	if err := tx.Commit(ctx); err != nil {
-		t.Fatalf("commit tx: %v", err)
-	}
-}
-
 // supplierPos returns a stable test Position at height 999001.
 func supplierPos() types.Position {
 	return types.Position{

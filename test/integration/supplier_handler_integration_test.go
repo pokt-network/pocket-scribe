@@ -23,6 +23,7 @@ import (
 	supplierhandler "github.com/pokt-network/pocketscribe/internal/consumer/supplier"
 	v0_1_27 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_27"
 	suppliergen "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_27/gen/pocket/supplier"
+	natsx "github.com/pokt-network/pocketscribe/internal/nats"
 	psv1 "github.com/pokt-network/pocketscribe/internal/proto/gen/pocketscribe/v1"
 	"github.com/pokt-network/pocketscribe/internal/router"
 )
@@ -51,13 +52,13 @@ func envelopeFor(h int64) *psv1.BlockEnvelope {
 }
 
 // wrapEvent builds a consumer.Message carrying an abci.Event at the given position.
-func wrapEvent(t *testing.T, height int64, subject string, ev abci.Event, txIdx, evIdx int32) consumer.Message {
+func wrapEvent(t *testing.T, height int64, subject string, ev abci.Event, evIdx int32) consumer.Message {
 	t.Helper()
 	evBytes, err := ev.Marshal()
 	if err != nil {
 		t.Fatalf("marshal abci.Event: %v", err)
 	}
-	wrapped := &psv1.EventInBlock{Event: evBytes, TxIndex: txIdx, EventIndex: evIdx}
+	wrapped := &psv1.EventInBlock{Event: evBytes, TxIndex: 0, EventIndex: evIdx}
 	data, err := wrapped.Marshal()
 	if err != nil {
 		t.Fatalf("marshal EventInBlock: %v", err)
@@ -103,7 +104,7 @@ func TestHandlerFlushEvent_UnbondingBegin(t *testing.T) {
 		{Key: "unbonding_end_height", Value: `"310"`},
 	}
 	ev := abci.Event{Type: "pocket.supplier.EventSupplierUnbondingBegin", Attributes: attrs}
-	msg := wrapEvent(t, blockH, "pokt.events.pocket.supplier.EventSupplierUnbondingBegin."+int64str(blockH), ev, 0, 5)
+	msg := wrapEvent(t, blockH, natsx.EventSubject("pocket.supplier.EventSupplierUnbondingBegin", blockH), ev, 5)
 
 	// Two calls: second must be idempotent (DO NOTHING).
 	flushMsg(t, h, blockH, []consumer.Message{msg})
@@ -148,7 +149,7 @@ func TestHandlerFlushEvent_UnbondingEnd(t *testing.T) {
 		{Key: "unbonding_end_height", Value: `"510"`},
 	}
 	ev := abci.Event{Type: "pocket.supplier.EventSupplierUnbondingEnd", Attributes: attrs}
-	msg := wrapEvent(t, blockH, "pokt.events.pocket.supplier.EventSupplierUnbondingEnd."+int64str(blockH), ev, 0, 6)
+	msg := wrapEvent(t, blockH, natsx.EventSubject("pocket.supplier.EventSupplierUnbondingEnd", blockH), ev, 6)
 
 	flushMsg(t, h, blockH, []consumer.Message{msg})
 
@@ -181,7 +182,7 @@ func TestHandlerFlushEvent_UnbondingCanceled(t *testing.T) {
 		{Key: "session_end_height", Value: `"710"`},
 	}
 	ev := abci.Event{Type: "pocket.supplier.EventSupplierUnbondingCanceled", Attributes: attrs}
-	msg := wrapEvent(t, blockH, "pokt.events.pocket.supplier.EventSupplierUnbondingCanceled."+int64str(blockH), ev, 0, 7)
+	msg := wrapEvent(t, blockH, natsx.EventSubject("pocket.supplier.EventSupplierUnbondingCanceled", blockH), ev, 7)
 
 	flushMsg(t, h, blockH, []consumer.Message{msg})
 
@@ -213,7 +214,7 @@ func TestHandlerFlushEvent_ServiceConfigActivated(t *testing.T) {
 		{Key: "activation_height", Value: `"820"`},
 	}
 	ev := abci.Event{Type: "pocket.supplier.EventSupplierServiceConfigActivated", Attributes: attrs}
-	msg := wrapEvent(t, blockH, "pokt.events.pocket.supplier.EventSupplierServiceConfigActivated."+int64str(blockH), ev, 0, 8)
+	msg := wrapEvent(t, blockH, natsx.EventSubject("pocket.supplier.EventSupplierServiceConfigActivated", blockH), ev, 8)
 
 	flushMsg(t, h, blockH, []consumer.Message{msg})
 
@@ -278,7 +279,7 @@ func TestHandlerFlushTx_MsgUnstake(t *testing.T) {
 		t.Fatalf("marshal TxWithResult: %v", err)
 	}
 
-	msg := consumer.Message{Height: blockH, Subject: "pokt.tx." + int64str(blockH) + ".0", Data: data}
+	msg := consumer.Message{Height: blockH, Subject: natsx.TxSubject(blockH, 0), Data: data}
 	flushMsg(t, h, blockH, []consumer.Message{msg})
 
 	var operator string
