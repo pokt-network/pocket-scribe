@@ -184,8 +184,9 @@ func (r *BatchRuntime) handle(ctx context.Context, msg jetstream.Msg) error {
 	}
 	// Fan-out acks happen strictly AFTER commit (invariant 5). Do NOT "optimize"
 	// by acking before/at buffering: an AckWait redelivery of a buffered msg hits
-	// the seen-map (acked as duplicate); after a crash, redeliveries re-buffer
-	// into an empty runtime, re-flush, and every insert is ON CONFLICT no-op.
+	// the seen-map (InProgress, never acked before commit); after a crash,
+	// redeliveries re-buffer into an empty runtime, re-flush, and every insert is
+	// ON CONFLICT no-op.
 	for _, a := range b.acks {
 		_ = a.Ack()
 	}

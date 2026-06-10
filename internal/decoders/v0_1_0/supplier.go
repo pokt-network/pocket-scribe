@@ -28,7 +28,7 @@ func (Decoder) DecodeSupplierMsg(typeURL string, value []byte) (*types.SupplierM
 			return nil, fmt.Errorf("v0_1_0 MsgStakeSupplier: %w", err)
 		}
 		servicesJSON, err := decoders.MarshalJSONPBSlice(m.Services)
-		if err != nil {
+		if err != nil { // unreachable-defensive: SupplierServiceConfig is a concrete gogo type; jsonpb never fails on it
 			return nil, err
 		}
 		out := &types.MsgStakeSupplier{
@@ -143,11 +143,11 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 			return nil, fmt.Errorf("v0_1_0 Supplier KV: %w", err)
 		}
 		servicesJSON, err := decoders.MarshalJSONPBSlice(s.Services)
-		if err != nil {
+		if err != nil { // unreachable-defensive: SupplierServiceConfig is a concrete gogo type; jsonpb never fails on it
 			return nil, err
 		}
 		schJSON, err := decoders.MarshalJSONPBSlice(s.ServiceConfigHistory)
-		if err != nil {
+		if err != nil { // unreachable-defensive: ServiceConfigUpdate is a concrete gogo type; jsonpb never fails on it
 			return nil, err
 		}
 		out := &types.SupplierSnapshot{
@@ -188,7 +188,7 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 			return nil, fmt.Errorf("v0_1_0 SCU key parse: %w", err)
 		}
 		scuJSON, err := marshalSCU(&scu)
-		if err != nil {
+		if err != nil { // unreachable-defensive: ServiceConfigUpdate is a concrete gogo type; marshalSCU never fails on it
 			return nil, err
 		}
 		return &types.SupplierKVRecord{ServiceConfigUpdate: &types.ServiceConfigUpdateSnapshot{
@@ -207,10 +207,10 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 func marshalSCU(scu *shared.ServiceConfigUpdate) ([]byte, error) {
 	// Use MarshalJSONPBSlice as a single-element slice then unwrap.
 	arr, err := decoders.MarshalJSONPBSlice([]*shared.ServiceConfigUpdate{scu})
-	if err != nil {
+	if err != nil { // unreachable-defensive: ServiceConfigUpdate is a concrete gogo type; jsonpb never fails on it
 		return nil, fmt.Errorf("v0_1_0 ServiceConfigUpdate JSON: %w", err)
 	}
-	if len(arr) < 2 {
+	if len(arr) < 2 { // unreachable-defensive: non-nil arr from MarshalJSONPBSlice is always at least "[{}]" (4 bytes)
 		return nil, fmt.Errorf("v0_1_0 ServiceConfigUpdate JSON unexpectedly short")
 	}
 	// strip array brackets: [{"..."}] → {"..."}

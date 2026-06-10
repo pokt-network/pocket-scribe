@@ -382,3 +382,54 @@ func TestDecodeSupplierKVSCURoundtrip(t *testing.T) {
 		t.Fatalf("ServiceConfigJSON = %s", scu2.ServiceConfigJSON)
 	}
 }
+
+// TestDecodeSupplierKVDeletedSCUValidKey verifies that a deleted SCU with a
+// well-formed key returns a Deleted:true snapshot (not an error).  This covers
+// the success branch of the deleted-SCU path (line 176–178 in supplier.go).
+func TestDecodeSupplierKVDeletedSCUValidKey(t *testing.T) {
+	actBytes := []byte{0, 0, 0, 0, 0, 0, 3, 232} // height 1000 big-endian
+	key := append([]byte("ServiceConfigUpdate/service_id/anvil/"), actBytes...)
+	key = append(key, '/')
+	key = append(key, []byte("pokt1op0/")...)
+
+	got, err := Decoder{}.DecodeSupplierKV(key, nil, true)
+	if err != nil {
+		t.Fatalf("unexpected error for valid deleted SCU key: %v", err)
+	}
+	if got == nil || got.ServiceConfigUpdate == nil {
+		t.Fatalf("want ServiceConfigUpdate snapshot, got %+v", got)
+	}
+	scu := got.ServiceConfigUpdate
+	if !scu.Deleted {
+		t.Fatalf("expected Deleted=true, got %+v", scu)
+	}
+	if scu.OperatorAddress != "pokt1op0" || scu.ServiceID != "anvil" || scu.ActivationHeight != 1000 {
+		t.Fatalf("decoded snapshot = %+v", scu)
+	}
+}
+
+// TestDecodeSupplierKVSCUBadKeyNonDeleted verifies that a non-deleted SCU with
+// a malformed key (valid prefix but truncated height segment) returns an error.
+// This covers the ParseSCUPrimaryKey error branch for the live-record path
+// (line 187–189 in supplier.go).
+func TestDecodeSupplierKVSCUBadKeyNonDeleted(t *testing.T) {
+	// Key has the SCU prefix and a service segment but no height bytes.
+	badKey := []byte("ServiceConfigUpdate/service_id/anvil")
+	_, err := Decoder{}.DecodeSupplierKV(badKey, []byte{}, false)
+	if err == nil {
+		t.Fatal("expected error for malformed non-deleted SCU key")
+	}
+	if !strings.Contains(err.Error(), "v0_1_0 SCU key parse") {
+		t.Fatalf("error should mention v0_1_0 SCU key parse: %v", err)
+	}
+}
+
+// TestDecodeSupplierKVUnknownKeySkipped verifies that a key that does not match
+// any known supplier prefix (e.g., a params or index-pointer key) is silently
+// skipped — returns (nil, nil).  This covers the default case (line 200–201).
+func TestDecodeSupplierKVUnknownKeySkipped(t *testing.T) {
+	got, err := Decoder{}.DecodeSupplierKV([]byte("p_supplier"), nil, false)
+	if got != nil || err != nil {
+		t.Fatalf("expected (nil,nil) for unknown key, got %+v, %v", got, err)
+	}
+}

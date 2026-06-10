@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	gogotypes "github.com/cosmos/gogoproto/types"
+
 	sh8 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_8/gen/pocket/shared"
 	sup8 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_8/gen/pocket/supplier"
 )
@@ -81,6 +83,22 @@ func TestMarshalJSONPBSliceUsesOrigName(t *testing.T) {
 	}
 	if !bytes.Contains(got, []byte("service_id")) {
 		t.Fatalf("snake_case key not found: %s", got)
+	}
+}
+
+// TestMarshalJSONPBSliceErrorPropagation verifies that a marshaling failure
+// inside MarshalJSONPBSlice (and marshalJSONPB) is surfaced as a non-nil error.
+// A gogo types.Any with an unresolvable type_url triggers the jsonpb error path
+// because the jsonpb Marshaler resolves Any values via the proto registry —
+// the stripped gen init() leaves no registration for "/nonexistent.Type".
+func TestMarshalJSONPBSliceErrorPropagation(t *testing.T) {
+	bad := []*gogotypes.Any{{TypeUrl: "/nonexistent.Type", Value: []byte{0x01}}}
+	_, err := MarshalJSONPBSlice(bad)
+	if err == nil {
+		t.Fatal("expected error for Any with unresolvable type_url")
+	}
+	if !strings.Contains(err.Error(), "jsonpb") {
+		t.Fatalf("error should mention jsonpb: %v", err)
 	}
 }
 
