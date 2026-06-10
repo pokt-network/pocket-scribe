@@ -1,0 +1,27 @@
+{
+  "height": 99417,
+  "time": "2025-06-04T21:42:28.961868371Z",
+  "hash": "33e374f0dce7814de69c790928ecbd114e799f75f23cdf04c0fb66ca45e5e363",
+  "proposer_address": "f9854e3cb13e69501b5c596c1fb7a44db231b38e",
+  "tx_count": 1,
+  "supplier": {
+    "msg_stake": [
+      {
+        "tx_index": 0,
+        "operator_address": "pokt1mvz6gf82quaal497gcpz2pt50qvynuxsp4up44",
+        "stake_amount": 80100000001,
+        "stake_denom": "upokt"
+      }
+    ],
+    "events_staked": [
+      {
+        "tx_index": 0,
+        "session_end_height": 99420
+      }
+    ],
+    "history_operators": [
+      "pokt1mvz6gf82quaal497gcpz2pt50qvynuxsp4up44"
+    ],
+    "scu_rows_min": 2
+  }
+}

@@ -64,10 +64,10 @@ Per version, ~3 fixtures are selected:
 | v0.1.13 | 80510 | 93824 | `v0_1_10` | 80510 (boundary/quiet), 83487 (tx-bearing — negative), 93824 (quiet) | negative-only |
 | v0.1.14 | 93825 | 94369 | `v0_1_10` | 93825 (boundary/quiet), 93881 (tx-bearing — negative), 94369 (quiet) | negative-only |
 | v0.1.15 | 94370 | 99292 | `v0_1_10` | 94370 (boundary/quiet), 96606 (migration-era EventSupplierUnbondingEnd×19 + KV×19 + scu=494), 99292 (quiet) | covered |
-| v0.1.16 | 99293 | 102141 | `v0_1_10` | — | pending curation (batch 13d) |
-| v0.1.17 | 102142 | 116099 | `v0_1_10` | 102542 (tx-bearing, supplier KV — covered via Phase D) | covered |
-| v0.1.18 | 116100 | 117453 | `v0_1_10` | — | pending curation (batch 13d) |
-| v0.1.19 | 117454 | 135296 | `v0_1_10` | — | pending curation (batch 13d) |
+| v0.1.16 | 99293 | 102141 | `v0_1_10` | 99293 (boundary), 99417 (msg_stake×1 + events_staked×1 + KV×1), 102019 (quiet) | covered |
+| v0.1.17 | 102142 | 116099 | `v0_1_10` | 102142 (boundary/quiet), 102542 (tx-bearing, supplier KV — Phase D), 115001 (quiet) | covered |
+| v0.1.18 | 116100 | 117453 | `v0_1_10` | 116100 (boundary/quiet), 116913 (msg_stake×37 + events_staked×37 + KV×37), 117001 (quiet) | covered |
+| v0.1.19 | 117454 | 135296 | `v0_1_10` | 117454 (boundary, tx_count=1 non-supplier), 119236 (msg_stake×70 + events_staked×70 + KV×70), 134001 (quiet) | covered |
 | v0.1.20 | 135297 | 138930 | `v0_1_20` | 135297 (boundary), 135836 (supplier activity), 135837 (supplier activity) | covered |
 | v0.1.21 | 138931 | 155172 | `v0_1_20` | — | pending curation (batch 13e) |
 | v0.1.22 | 155173 | 161108 | `v0_1_20` | — | pending curation (batch 13e) |
