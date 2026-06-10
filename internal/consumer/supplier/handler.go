@@ -8,7 +8,6 @@ package supplier
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	storetypes "cosmossdk.io/store/types"
@@ -75,15 +74,15 @@ func (h *Handler) FlushHeight(ctx context.Context, tx pgx.Tx, env *psv1.BlockEnv
 	pos := types.Position{Height: env.Height, Time: time.Unix(0, env.TimeUnixNano).UTC()}
 	for _, m := range msgs {
 		switch {
-		case strings.HasPrefix(m.Subject, "pokt.tx."):
+		case natsx.IsTxSubject(m.Subject):
 			if err := h.flushTx(ctx, tx, dec, pos, decodedBy, m); err != nil {
 				return err
 			}
-		case strings.HasPrefix(m.Subject, "pokt.events."):
+		case natsx.IsEventSubject(m.Subject):
 			if err := h.flushEvent(ctx, tx, dec, pos, decodedBy, m); err != nil {
 				return err
 			}
-		case strings.HasPrefix(m.Subject, "pokt.kv."):
+		case natsx.IsKVSubject(m.Subject):
 			if err := h.flushKV(ctx, tx, dec, pos, decodedBy, m); err != nil {
 				return err
 			}

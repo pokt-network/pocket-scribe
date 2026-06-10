@@ -103,8 +103,8 @@ func TestBatchRuntimeSubjectClassification(t *testing.T) {
 		if h != c.wantH {
 			t.Errorf("HeightFromSubject(%q) = %d, want %d", c.subject, h, c.wantH)
 		}
-		// Verify envelope detection (the "pokt.block." prefix check in handle).
-		isBlock := len(c.subject) >= len("pokt.block.") && c.subject[:len("pokt.block.")] == "pokt.block."
+		// Verify envelope detection via the Is*Subject classifier helpers (rule 7).
+		isBlock := natsx.IsBlockSubject(c.subject)
 		if isBlock != c.isBlock {
 			t.Errorf("isBlock(%q) = %v, want %v", c.subject, isBlock, c.isBlock)
 		}
