@@ -72,10 +72,10 @@ Per version, ~3 fixtures are selected:
 | v0.1.21 | 138931 | 155172 | `v0_1_20` | 138931 (boundary, tx_count=2), 146651 (msg_stake×67 + events_staked×67 + KV×67), 155172 (quiet) | covered |
 | v0.1.22 | 155173 | 161108 | `v0_1_20` | 155173 (boundary/quiet), 155296 (msg_stake×2 + events_staked×2 + KV×2), 161107 (quiet) | covered |
 | v0.1.23 | 161109 | 161168 | `v0_1_20` | 161109 (boundary/quiet), 161155 (tx-bearing 30 txs — negative, no supplier activity), 161168 (quiet) | negative-only |
-| v0.1.24 | 161169 | 190973 | `v0_1_20` | — | pending curation (batch 13f) |
-| v0.1.25 | 190974 | 190978 | `v0_1_20` | — | pending curation (batch 13f) |
-| v0.1.26 | 190979 | 247892 | `v0_1_20` | — | pending curation (batch 13f) |
-| v0.1.27 | 247893 | 287931 | `v0_1_27` | — | pending curation (batch 13f) |
+| v0.1.24 | 161169 | 190973 | `v0_1_20` | 161169 (boundary/quiet), 166402 (msg_stake×45 + events_staked×45 + KV×45), 175001 (quiet) | covered |
+| v0.1.25 | 190974 | 190978 | `v0_1_20` | 190974 (boundary/quiet), 190975 (tx-bearing — negative, no supplier activity), 190978 (quiet) | negative-only (5-block era) |
+| v0.1.26 | 190979 | 247892 | `v0_1_20` | 190979 (boundary/quiet), 227782 (msg_stake×73 + events_staked×73 + KV×73), 220010 (quiet) | covered |
+| v0.1.27 | 247893 | 287931 | `v0_1_27` | 247894 (boundary-proxy quiet; boundary 247893 is 15 MB — skipped per >5 MB rule), 247921 (msg_stake×9 + events_staked×9 + KV×9 — validates decoder v0_1_27 break), 260001 (quiet) | covered |
 | v0.1.28 | 287932 | 382249 | `v0_1_28` | 287932 (boundary), 290584 (supplier activity), 295476 (quiet) | covered |
 | v0.1.29 | 382250 | 484472 | `v0_1_29` | 382250 (boundary/quiet), 385145 (supplier activity) | covered |
 | v0.1.30 | 484473 | 635505 | `v0_1_30` | — | PENDING — no archived data (archeology running on multi-1; when the tarball lands in the bucket, run the `curate-version-fixtures` skill) |
