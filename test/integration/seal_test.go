@@ -55,7 +55,7 @@ func TestSealTwoConsumersAND(t *testing.T) { // spec test 8
 
 func assertSealed(t *testing.T, s interface {
 	IsSealed(context.Context, int64, string) (bool, error)
-}, h int64, genesis string, want bool) { //nolint:unparam // genesis varies in Task 5-7 tests; 4-arg form required by plan
+}, h int64, genesis string, want bool) { //nolint:unparam // genesis varies in multi-network tests (Task 7)
 	t.Helper()
 	got, err := s.IsSealed(context.Background(), h, genesis)
 	if err != nil {

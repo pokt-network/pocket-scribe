@@ -19,11 +19,12 @@ const reprocessDelay = 500 * time.Millisecond
 
 // Runtime drives one consumer: subscribe → ack-after-commit → repeat.
 type Runtime struct {
-	handler  Handler
-	store    *store.Store
-	consumer jetstream.Consumer
-	logger   *slog.Logger
-	metrics  *metrics.Consumer
+	handler        Handler
+	store          *store.Store
+	consumer       jetstream.Consumer
+	logger         *slog.Logger
+	metrics        *metrics.Consumer
+	genesisVersion string
 }
 
 // Config wires a Runtime's collaborators.
@@ -33,16 +34,19 @@ type Config struct {
 	Consumer jetstream.Consumer
 	Logger   *slog.Logger
 	Metrics  *metrics.Consumer
+	// GenesisVersion is network.genesis_decoder_version; empty disables the dormancy gate.
+	GenesisVersion string
 }
 
 // NewRuntime constructs a Runtime.
 func NewRuntime(cfg Config) *Runtime {
 	return &Runtime{
-		handler:  cfg.Handler,
-		store:    cfg.Store,
-		consumer: cfg.Consumer,
-		logger:   cfg.Logger,
-		metrics:  cfg.Metrics,
+		handler:        cfg.Handler,
+		store:          cfg.Store,
+		consumer:       cfg.Consumer,
+		logger:         cfg.Logger,
+		metrics:        cfg.Metrics,
+		genesisVersion: cfg.GenesisVersion,
 	}
 }
 
@@ -56,6 +60,11 @@ const reconnectDelay = 500 * time.Millisecond
 func (r *Runtime) Run(ctx context.Context) error {
 	if err := r.store.RegisterConsumer(ctx, r.handler.ID(), r.handler.FirstValidVersion()); err != nil {
 		return err
+	}
+	if d, err := dormant(ctx, r.store, r.handler.ID(), r.handler.FirstValidVersion(), r.genesisVersion, r.logger); err != nil {
+		return err
+	} else if d {
+		return nil
 	}
 	for {
 		if err := ctx.Err(); err != nil {

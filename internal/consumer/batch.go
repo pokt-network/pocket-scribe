@@ -19,11 +19,12 @@ import (
 // pokt.block.{H} envelope in ONE Postgres tx → ack everything after commit
 // (invariants 4+5; ADR-024 block-boundary fence; size/time valves are Phase G).
 type BatchRuntime struct {
-	handler  BatchHandler
-	store    *store.Store
-	consumer jetstream.Consumer
-	logger   *slog.Logger
-	metrics  *metrics.Consumer
+	handler        BatchHandler
+	store          *store.Store
+	consumer       jetstream.Consumer
+	logger         *slog.Logger
+	metrics        *metrics.Consumer
+	genesisVersion string
 	// TODO(phase-g): partial-flush valves (ADR-024 triggers 2-3) + orphaned heightBuf eviction.
 	buf map[int64]*heightBuf // accessed only from the consume goroutine
 }
@@ -41,17 +42,20 @@ type BatchConfig struct {
 	Consumer jetstream.Consumer
 	Logger   *slog.Logger
 	Metrics  *metrics.Consumer
+	// GenesisVersion is network.genesis_decoder_version; empty disables the dormancy gate.
+	GenesisVersion string
 }
 
 // NewBatchRuntime constructs a BatchRuntime.
 func NewBatchRuntime(cfg BatchConfig) *BatchRuntime {
 	return &BatchRuntime{
-		handler:  cfg.Handler,
-		store:    cfg.Store,
-		consumer: cfg.Consumer,
-		logger:   cfg.Logger,
-		metrics:  cfg.Metrics,
-		buf:      make(map[int64]*heightBuf),
+		handler:        cfg.Handler,
+		store:          cfg.Store,
+		consumer:       cfg.Consumer,
+		logger:         cfg.Logger,
+		metrics:        cfg.Metrics,
+		genesisVersion: cfg.GenesisVersion,
+		buf:            make(map[int64]*heightBuf),
 	}
 }
 
@@ -61,6 +65,11 @@ func NewBatchRuntime(cfg BatchConfig) *BatchRuntime {
 func (r *BatchRuntime) Run(ctx context.Context) error {
 	if err := r.store.RegisterConsumer(ctx, r.handler.ID(), r.handler.FirstValidVersion()); err != nil {
 		return err
+	}
+	if d, err := dormant(ctx, r.store, r.handler.ID(), r.handler.FirstValidVersion(), r.genesisVersion, r.logger); err != nil {
+		return err
+	} else if d {
+		return nil
 	}
 	for {
 		if err := ctx.Err(); err != nil {
