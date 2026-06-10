@@ -56,11 +56,11 @@ Per version, ~3 fixtures are selected:
 | v0.1.5 | 78654 | 78658 | `v0_1_0` | 78654 (boundary/quiet), 78656 (tx-bearing — negative) | negative-only |
 | v0.1.6 | 78659 | 78664 | `v0_1_0` | 78659 (boundary/quiet), 78662 (tx-bearing — negative) | negative-only |
 | v0.1.7 | 78665 | 78670 | `v0_1_0` | 78665 (boundary/quiet), 78668 (tx-bearing — negative) | negative-only |
-| v0.1.8 | 78671 | 78677 | `v0_1_8` | — | pending curation (batch 13b) |
-| v0.1.9 | 78678 | 78682 | `v0_1_8` | — | pending curation (batch 13b) |
+| v0.1.8 | 78671 | 78677 | `v0_1_8` | 78671 (boundary/quiet), 78674 (tx-bearing — negative), 78675 (quiet) | negative-only |
+| v0.1.9 | 78678 | 78682 | `v0_1_8` | 78678 (boundary/quiet), 78679 (quiet), 78680 (tx-bearing — negative) | negative-only |
 | v0.1.10 | 78683 | 78688 | `v0_1_10` | 78683 (boundary/quiet) | negative-only |
-| v0.1.11 | 78689 | 78696 | `v0_1_10` | — | pending curation (batch 13b) |
-| v0.1.12 | 78697 | 80509 | `v0_1_10` | — | pending curation (batch 13b) |
+| v0.1.11 | 78689 | 78696 | `v0_1_10` | 78689 (boundary/quiet), 78690 (quiet), 78693 (tx-bearing — negative) | negative-only |
+| v0.1.12 | 78697 | 80509 | `v0_1_10` | 78697 (boundary/quiet), 78698 (quiet), 80503 (tx-bearing — negative) | negative-only |
 | v0.1.13 | 80510 | 93824 | `v0_1_10` | — | pending curation (batch 13c) |
 | v0.1.14 | 93825 | 94369 | `v0_1_10` | — | pending curation (batch 13c) |
 | v0.1.15 | 94370 | 99292 | `v0_1_10` | — | pending curation (batch 13c) |
