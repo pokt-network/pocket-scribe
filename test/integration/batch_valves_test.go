@@ -26,7 +26,9 @@ import (
 
 	storetypes "cosmossdk.io/store/types"
 	natsgo "github.com/nats-io/nats.go"
+
 	"github.com/nats-io/nats.go/jetstream"
+	v010shared "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_0/gen/pocket/shared"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
@@ -101,44 +103,49 @@ func startBatchRuntime(t *testing.T, stream jetstream.Stream, ids map[string]int
 	return rh
 }
 
-// publishFanOutMsgs publishes n synthetic KV messages for the supplier store at
-// height h directly to JetStream, stamping the Pocket-Block-Time header so the
-// size/time valves can fire.  Returns the number of messages published.
-// A real blockTimeNano is required; we use a fixed wall-clock offset from the
-// test start time (not time.Now() in chain-data rows — Invariant 1 applies only
-// to chain-data rows; this is test scaffolding).
-// kvPayloadUnknownKey builds a valid StoreKVPair payload whose key does not
-// match any known supplier decoder pattern — the decoder returns (nil, nil)
-// and the handler produces zero DB rows, but Unmarshal succeeds so the
-// partial flush does not return an error.
-func kvPayloadUnknownKey(t *testing.T) []byte {
+// valveOperator returns the deterministic operator address for fan-out msg i.
+func valveOperator(i int) string {
+	return "pokt1valve" + strconv.Itoa(i)
+}
+
+// kvPayloadSupplierRecord builds a REAL decodable StoreKVPair payload: a
+// Supplier/operator_address/<op>/ key whose value is a marshalled v0_1_0
+// pocket.shared.Supplier proto.  At low heights the StaticRouter routes to the
+// v0_1_0 decoder, which decodes this into a SupplierSnapshot — partial flushes
+// therefore write REAL supplier_history rows (one per distinct operator).
+func kvPayloadSupplierRecord(t *testing.T, op string) []byte {
 	t.Helper()
+	sup := v010shared.Supplier{OperatorAddress: op, OwnerAddress: op}
+	val, err := sup.Marshal()
+	if err != nil {
+		t.Fatalf("kvPayloadSupplierRecord: marshal Supplier: %v", err)
+	}
 	kv := storetypes.StoreKVPair{
 		StoreKey: "supplier",
-		Key:      []byte("test-valve-padding"),
-		Value:    []byte("v"),
+		Key:      []byte("Supplier/operator_address/" + op + "/"),
+		Value:    val,
 		Delete:   false,
 	}
 	raw, err := kv.Marshal()
 	if err != nil {
-		t.Fatalf("kvPayloadUnknownKey: marshal: %v", err)
+		t.Fatalf("kvPayloadSupplierRecord: marshal StoreKVPair: %v", err)
 	}
 	return raw
 }
 
 // publishFanOutMsgs publishes count KV messages for the supplier store at
-// height h, each with a valid but decode-to-nil StoreKVPair payload and a
-// Pocket-Block-Time header so the size/time valves can fire.
+// height h, each carrying a decodable Supplier record (distinct operator per
+// message → distinct supplier_history row) and a Pocket-Block-Time header so
+// the size/time valves can fire AND write real rows.
 func publishFanOutMsgs(t *testing.T, js jetstream.JetStream, height int64, count int, blockTimeNano int64) {
 	t.Helper()
 	ctx := context.Background()
-	payload := kvPayloadUnknownKey(t)
 	for i := 0; i < count; i++ {
 		subj := natsx.KVSubject("supplier", height)
 		msgID := natsx.MsgID(subj, height, i)
 		msg := &natsgo.Msg{
 			Subject: subj,
-			Data:    payload,
+			Data:    kvPayloadSupplierRecord(t, valveOperator(i)),
 			Header:  natsgo.Header{},
 		}
 		msg.Header.Set(natsx.HeaderBlockTime, strconv.FormatInt(blockTimeNano, 10))
@@ -146,6 +153,21 @@ func publishFanOutMsgs(t *testing.T, js jetstream.JetStream, height int64, count
 			t.Fatalf("publishFanOutMsgs h=%d i=%d: %v", height, i, err)
 		}
 	}
+}
+
+// valveTestHeight is the height under test in both valve sub-tests (heights 1
+// and 2 are bootstrapped as contiguous prior art for the cursor).
+const valveTestHeight int64 = 3
+
+// supplierHistoryCount returns COUNT(*) FROM supplier_history at valveTestHeight.
+func supplierHistoryCount(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := pg.Pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM supplier_history WHERE block_height=$1`, valveTestHeight).Scan(&n); err != nil {
+		t.Fatalf("supplierHistoryCount: %v", err)
+	}
+	return n
 }
 
 // publishEnvelope publishes a BlockEnvelope on pokt.block.{H} with
@@ -223,7 +245,7 @@ func TestBatchValvesSizeFlushAndEviction(t *testing.T) {
 
 		// Start supplier runtime with MaxRows=5 so 12 fan-out msgs trigger 2 size
 		// valve partial flushes BEFORE the envelope arrives.
-		const testHeight int64 = 3
+		const testHeight = valveTestHeight
 		// blockTimeNano: use a fixed non-zero value (chain-consensus time simulation).
 		// This is test scaffolding; it is NOT used for chain-data rows (Invariant 1).
 		const blockTimeNano int64 = 1_700_000_000_000_000_000
@@ -243,6 +265,13 @@ func TestBatchValvesSizeFlushAndEviction(t *testing.T) {
 		// Wait for at least 2 partial flushes (size valve).
 		waitPartialFlushes(t, supplierRH.metrics, "supplier", "size", 2, 15*time.Second)
 
+		// MANDATORY DB signal (spec): partial-flush rows are PRESENT in DB while
+		// the cursor is still behind.  2 size flushes × MaxRows=5 = 10 committed
+		// supplier_history rows (metric increments only AFTER FlushOnly commits).
+		if got := supplierHistoryCount(t); got < 10 {
+			t.Fatalf("size valve: supplier_history rows at h=%d = %d before envelope, want >= 10 (2 partial flushes of 5)", testHeight, got)
+		}
+
 		// At this point the cursor for "supplier" must still be BEHIND testHeight
 		// (envelope not yet published → height not processed → cursor not advanced).
 		if cursorAtHeight(t, supplierRH.store, "supplier", testHeight) {
@@ -254,6 +283,16 @@ func TestBatchValvesSizeFlushAndEviction(t *testing.T) {
 
 		// Cursor must advance to testHeight.
 		waitHasProcessed(t, supplierRH.store, "supplier", testHeight, 30*time.Second)
+
+		// Exact row count, no dupes: 12 distinct operators → 12 rows.
+		if got := supplierHistoryCount(t); got != 12 {
+			t.Errorf("supplier_history rows at h=%d = %d after envelope, want exactly 12 (no dupes)", testHeight, got)
+		}
+
+		// consolidated_up_to must be EXACTLY testHeight (heights 1-3 contiguous).
+		if cur, err := supplierRH.store.ConsolidatedUpTo(context.Background(), "supplier"); err != nil || cur != testHeight {
+			t.Errorf("ConsolidatedUpTo(supplier) = %d, %v; want exactly %d", cur, err, testHeight)
+		}
 
 		// processed_heights has exactly one row (no double-insert despite partial flushes).
 		ctx := context.Background()
@@ -289,7 +328,7 @@ func TestBatchValvesSizeFlushAndEviction(t *testing.T) {
 		bootstrapHeights(t, 1, 2)
 		waitCursor(t, blockRH.store, "block", 2, 20*time.Second)
 
-		const testHeight int64 = 3
+		const testHeight = valveTestHeight
 		const blockTimeNano int64 = 1_700_000_000_100_000_000
 
 		// MaxAge=200ms, EvictAfter=1s: the sweep goroutine will evict the buffer for
@@ -329,6 +368,12 @@ func TestBatchValvesSizeFlushAndEviction(t *testing.T) {
 			t.Fatalf("eviction test: cursor already at %d despite no envelope", testHeight)
 		}
 
+		// The time valve (MaxAge=200ms << EvictAfter=1s) flushed the partial rows
+		// to DB before the buffer was evicted — they must be PRESENT now.
+		if got := supplierHistoryCount(t); got != 6 {
+			t.Errorf("supplier_history rows at h=%d after eviction = %d, want 6 (time-valve partial flush preceded eviction)", testHeight, got)
+		}
+
 		// Now publish the envelope.  The first delivery will be Nak'd by the
 		// eviction fence (rebuilt buffer's seen-count < recorded count).  NATS will
 		// redeliver; subsequent attempts succeed once the fan-out messages are
@@ -354,6 +399,16 @@ func TestBatchValvesSizeFlushAndEviction(t *testing.T) {
 		}
 		if phCount != 1 {
 			t.Errorf("processed_heights rows for (supplier,%d) = %d, want 1 (idempotent after eviction+redelivery)", testHeight, phCount)
+		}
+
+		// Exact final rows: idempotency absorbed the pre-eviction partial rows.
+		if got := supplierHistoryCount(t); got != 6 {
+			t.Errorf("supplier_history rows at h=%d final = %d, want exactly 6 (idempotent re-flush after redelivery)", testHeight, got)
+		}
+
+		// consolidated_up_to must be EXACTLY testHeight.
+		if cur, err := supplierRH.store.ConsolidatedUpTo(ctx, "supplier"); err != nil || cur != testHeight {
+			t.Errorf("ConsolidatedUpTo(supplier) = %d, %v; want exactly %d", cur, err, testHeight)
 		}
 	})
 }

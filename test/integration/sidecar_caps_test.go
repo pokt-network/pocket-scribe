@@ -238,12 +238,20 @@ func TestSidecarCapsPayloadPolicy(t *testing.T) {
 		blockRH := startBlockRuntime(t, stream, "block")
 
 		// The envelope for H2 was NEVER published (Bootstrap errored before it).
-		// Wait long enough for any in-flight redeliveries to settle, then assert
-		// the cursor has NOT advanced to H2.
-		time.Sleep(2 * time.Second)
-
-		if cursorAtHeight(t, blockRH.store, "block", h2) {
-			t.Errorf("block cursor advanced to %d; expected it to remain below (hard-cap envelope never published)", h2)
+		// Poll for 3 s (100 ms step) asserting the cursor NEVER advances to H2.
+		pollTick := time.NewTicker(100 * time.Millisecond)
+		defer pollTick.Stop()
+		pollDeadline := time.After(3 * time.Second)
+	pollLoop:
+		for {
+			if cursorAtHeight(t, blockRH.store, "block", h2) {
+				t.Fatalf("block cursor advanced to %d; expected it to remain below (hard-cap envelope never published)", h2)
+			}
+			select {
+			case <-pollDeadline:
+				break pollLoop
+			case <-pollTick.C:
+			}
 		}
 
 		// No block row for H2.
