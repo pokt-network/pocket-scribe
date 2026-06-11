@@ -10,10 +10,11 @@ import (
 
 // Message is the runtime's view of one block-level NATS message.
 type Message struct {
-	Height  int64
-	Subject string
-	MsgID   string
-	Data    []byte
+	Height       int64
+	Subject      string
+	MsgID        string
+	TimeUnixNano int64 // Pocket-Block-Time header; 0 when absent (pre-Phase-G streams)
+	Data         []byte
 }
 
 // Handler is the per-module business logic invoked inside the ack-after-commit

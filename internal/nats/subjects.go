@@ -10,6 +10,10 @@ import (
 // messages. Single source of truth — do not redeclare elsewhere (DRY).
 const StreamName = "POKT"
 
+// HeaderBlockTime carries the consensus block time (unix nanoseconds) on every
+// fan-out message (ADR-022 amendment, Phase G). Required for partial flushes.
+const HeaderBlockTime = "Pocket-Block-Time"
+
 // StreamSubjects are the subject filters bound to StreamName.
 var StreamSubjects = []string{"pokt.>"}
 

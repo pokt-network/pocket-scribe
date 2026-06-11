@@ -1,14 +1,17 @@
 package reconciler
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	"github.com/pokt-network/pocketscribe/internal/config"
+	"github.com/pokt-network/pocketscribe/internal/metrics"
 	"github.com/pokt-network/pocketscribe/internal/store"
 	upgrades "github.com/pokt-network/pocketscribe/internal/upgrades"
 )
@@ -41,22 +44,10 @@ func NewCmd() *cobra.Command {
 			}
 			defer st.Close()
 			syncer := upgrades.New(cfg.Endpoints.LCD[0], nil)
-			logger := slog.Default()
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-ticker.C:
-					n, err := syncer.Sync(ctx, st, cfg.Network.UpgradeNames)
-					if err != nil {
-						logger.Error("reconciler: upgrades sync failed", "err", err)
-						continue
-					}
-					logger.Info("reconciler: upgrades synced", "count", n)
-				}
-			}
+			m := metrics.NewReconciler(prometheus.DefaultRegisterer)
+			return runLoop(ctx, interval, func(ctx context.Context) (int, error) {
+				return syncer.Sync(ctx, st, cfg.Network.UpgradeNames)
+			}, slog.Default(), m)
 		},
 	}
 	cmd.Flags().StringVar(&cfgPath, "config", "", "path to network config YAML (required)")

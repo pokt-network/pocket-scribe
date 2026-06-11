@@ -28,6 +28,7 @@ import (
 	psv1 "github.com/pokt-network/pocketscribe/internal/proto/gen/pocketscribe/v1"
 	"github.com/pokt-network/pocketscribe/internal/store"
 	"github.com/pokt-network/pocketscribe/internal/types"
+	tc "github.com/pokt-network/pocketscribe/test/testcontainers"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -323,6 +324,156 @@ func TestMigrate_StatusCommand(t *testing.T) {
 func TestMigrate_UnknownCommand(t *testing.T) {
 	if err := store.Migrate(context.Background(), pg.DSN, "rewind"); err == nil {
 		t.Fatal("expected error for unknown migrate command")
+	}
+}
+
+// TestMigrateDownOneStep verifies that Migrate("down") rolls back exactly one
+// migration on a DEDICATED container (never touches the shared pg harness) and
+// that a subsequent Migrate("up") round-trips cleanly. This exercises the
+// "down" branch in migrate.go which is never reached by the shared harness
+// (that only calls "up").
+//
+// The last migration (0040_supplier_service_config_update.sql) has a proper
+// -- +goose Down section (DROP TABLE IF EXISTS supplier_service_config_update_history),
+// so Migrate("down") should succeed.
+func TestMigrateDownOneStep(t *testing.T) {
+	ctx := context.Background()
+
+	// Spin up a DEDICATED postgres container — never touches the shared harness.
+	dedicated, err := tc.StartPostgres(ctx)
+	if err != nil {
+		t.Fatalf("start dedicated postgres: %v", err)
+	}
+	t.Cleanup(func() {
+		dedicated.Pool.Close()
+		_ = dedicated.Container.Terminate(ctx)
+	})
+
+	dsn := dedicated.DSN
+
+	// Migrate up is already done by StartPostgres; confirm status succeeds.
+	if err := store.Migrate(ctx, dsn, "status"); err != nil {
+		t.Fatalf("Migrate(status) after up: %v", err)
+	}
+
+	// Migrate down one step — rolls back migration 0040 which has a valid Down section.
+	if err := store.Migrate(ctx, dsn, "down"); err != nil {
+		t.Fatalf("Migrate(down): %v — check that migration 0040 has a valid -- +goose Down section", err)
+	}
+
+	// Confirm the table dropped by migration 0040 is gone.
+	var tableExists bool
+	if err := dedicated.Pool.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = 'public' AND table_name = 'supplier_service_config_update_history'
+		)`).Scan(&tableExists); err != nil {
+		t.Fatalf("check table existence: %v", err)
+	}
+	if tableExists {
+		t.Fatal("supplier_service_config_update_history still exists after down migration; down did not execute")
+	}
+
+	// Migrate up again — round-trip: table reappears, no error.
+	if err := store.Migrate(ctx, dsn, "up"); err != nil {
+		t.Fatalf("Migrate(up) after down: %v", err)
+	}
+
+	// Confirm the table is back.
+	if err := dedicated.Pool.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = 'public' AND table_name = 'supplier_service_config_update_history'
+		)`).Scan(&tableExists); err != nil {
+		t.Fatalf("check table existence after re-up: %v", err)
+	}
+	if !tableExists {
+		t.Fatal("supplier_service_config_update_history missing after re-up migration; round-trip failed")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FlushOnly — phase G: commits handler writes WITHOUT touching cursor tables.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// insertTestBlock inserts a block row at the given height inside tx.
+// It is a local helper for FlushOnly tests only.
+func insertTestBlock(ctx context.Context, tx pgx.Tx, _ *store.Store, height int64) error {
+	hdr := &types.BlockHeader{
+		Height: height,
+		Time:   time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	return store.InsertBlock(ctx, tx, hdr)
+}
+
+// TestFlushOnlyNoCursorAdvance verifies that FlushOnly:
+//  1. commits the handler's writes (block row is present after call).
+//  2. does NOT advance consumer_consolidation (ConsolidatedUpTo remains 0).
+//  3. does NOT write a processed_heights row (HasProcessed returns false).
+//  4. rolls back on write-callback error (block at height 999992 absent).
+func TestFlushOnlyNoCursorAdvance(t *testing.T) {
+	pg.Reset(t)
+	ctx := context.Background()
+	s := storeFrom(t)
+
+	// Register a consumer so ConsolidatedUpTo is queryable.
+	if err := s.RegisterConsumer(ctx, "flushonly-test", "v0.1.0"); err != nil {
+		t.Fatalf("register consumer: %v", err)
+	}
+
+	// Happy path: FlushOnly inserts a block row at height 999991.
+	if err := s.FlushOnly(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		return insertTestBlock(ctx, tx, s, 999991)
+	}); err != nil {
+		t.Fatalf("FlushOnly: %v", err)
+	}
+
+	// Assert: block row is present.
+	var blockCount int
+	if err := s.Pool().QueryRow(ctx,
+		`SELECT count(*) FROM block WHERE height=999991`).Scan(&blockCount); err != nil {
+		t.Fatalf("query block: %v", err)
+	}
+	if blockCount != 1 {
+		t.Fatalf("expected block row at height 999991, count=%d", blockCount)
+	}
+
+	// Assert: cursor NOT advanced.
+	cur, err := s.ConsolidatedUpTo(ctx, "flushonly-test")
+	if err != nil {
+		t.Fatalf("ConsolidatedUpTo: %v", err)
+	}
+	if cur != 0 {
+		t.Fatalf("ConsolidatedUpTo = %d, want 0 (FlushOnly must not advance cursor)", cur)
+	}
+
+	// Assert: no processed_heights row.
+	ok, err := s.HasProcessed(ctx, "flushonly-test", 999991)
+	if err != nil {
+		t.Fatalf("HasProcessed: %v", err)
+	}
+	if ok {
+		t.Fatal("HasProcessed = true; FlushOnly must not write processed_heights")
+	}
+
+	// Error path: FlushOnly with a write callback that fails must roll back.
+	if err := s.FlushOnly(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if insErr := insertTestBlock(ctx, tx, s, 999992); insErr != nil {
+			return insErr
+		}
+		return fmt.Errorf("boom")
+	}); err == nil {
+		t.Fatal("expected FlushOnly to return error when write callback fails")
+	}
+
+	// Assert: height 999992 not committed (rollback).
+	var count992 int
+	if err := s.Pool().QueryRow(ctx,
+		`SELECT count(*) FROM block WHERE height=999992`).Scan(&count992); err != nil {
+		t.Fatalf("query block 999992: %v", err)
+	}
+	if count992 != 0 {
+		t.Fatalf("height 999992 should not be committed after FlushOnly error, count=%d", count992)
 	}
 }
 

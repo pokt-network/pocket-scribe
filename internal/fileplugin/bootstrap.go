@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/pokt-network/pocketscribe/internal/decoders"
@@ -61,8 +62,10 @@ func Bootstrap(ctx context.Context, client *natsx.Client, dir string, maxHeight 
 	sort.Slice(entries, func(i, j int) bool { return entries[i].height < entries[j].height })
 
 	js := client.JetStream()
-	publish := capPublish(func(subj string, data []byte, msgID string) error {
-		_, err := js.Publish(ctx, subj, data, jetstream.WithMsgID(msgID))
+	publish := capPublish(func(subj string, data []byte, msgID string, blockTimeNano int64) error {
+		msg := &nats.Msg{Subject: subj, Data: data, Header: nats.Header{}}
+		msg.Header.Set(natsx.HeaderBlockTime, strconv.FormatInt(blockTimeNano, 10))
+		_, err := js.PublishMsg(ctx, msg, jetstream.WithMsgID(msgID))
 		return err
 	}, slog.Default(), fpm)
 	heights, total := 0, 0
@@ -79,7 +82,7 @@ func Bootstrap(ctx context.Context, client *natsx.Client, dir string, maxHeight 
 
 // fanOutHeight publishes one height's fan-out + envelope. publish is injected
 // for testability.
-func fanOutHeight(_ context.Context, publish func(subj string, data []byte, msgID string) error, height int64, metaPath, chainID string) (int, error) {
+func fanOutHeight(_ context.Context, publish func(subj string, data []byte, msgID string, blockTimeNano int64) error, height int64, metaPath, chainID string) (int, error) {
 	metaBytes, err := os.ReadFile(metaPath) //nolint:gosec // path is constructed from validated fixture dir
 	if err != nil {
 		return 0, fmt.Errorf("read meta: %w", err)
@@ -105,6 +108,7 @@ func fanOutHeight(_ context.Context, publish func(subj string, data []byte, msgI
 	if err != nil {
 		return 0, err
 	}
+	btn := header.Time.UnixNano() // consensus block time; stamped on every fan-out message (ADR-022 amendment)
 
 	n := 0
 	// ── txs ──
@@ -120,7 +124,7 @@ func fanOutHeight(_ context.Context, publish func(subj string, data []byte, msgI
 			return n, err
 		}
 		subj := natsx.TxSubject(height, i)
-		if err := publish(subj, raw, natsx.MsgID(subj, height, i)); err != nil {
+		if err := publish(subj, raw, natsx.MsgID(subj, height, i), btn); err != nil {
 			return n, err
 		}
 		n++
@@ -137,7 +141,7 @@ func fanOutHeight(_ context.Context, publish func(subj string, data []byte, msgI
 			return err
 		}
 		subj := natsx.EventSubject(ev.Type, height)
-		if err := publish(subj, raw, natsx.MsgID(subj, height, ordinal)); err != nil {
+		if err := publish(subj, raw, natsx.MsgID(subj, height, ordinal), btn); err != nil {
 			return err
 		}
 		ordinal++
@@ -170,7 +174,7 @@ func fanOutHeight(_ context.Context, publish func(subj string, data []byte, msgI
 			return n, fmt.Errorf("data record %d: %w", kvCount, err)
 		}
 		subj := natsx.KVSubject(storeKey, height)
-		if err := publish(subj, payload, natsx.MsgID(subj, height, kvCount)); err != nil {
+		if err := publish(subj, payload, natsx.MsgID(subj, height, kvCount), btn); err != nil {
 			return n, err
 		}
 		kvCount++
@@ -179,7 +183,7 @@ func fanOutHeight(_ context.Context, publish func(subj string, data []byte, msgI
 	}
 	// ── envelope LAST (the fence) ──
 	env := &psv1.BlockEnvelope{
-		Height: height, TimeUnixNano: header.Time.UnixNano(),
+		Height: height, TimeUnixNano: btn,
 		Hash: header.Hash, ProposerAddress: header.ProposerAddress, ChainId: chainID,
 		TxCount: int32(len(req.Txs)), EventCount: int32(eventCount), KvCount: int32(kvCount),
 		PublishedMsgCount: int32(n),
@@ -189,7 +193,7 @@ func fanOutHeight(_ context.Context, publish func(subj string, data []byte, msgI
 		return n, err
 	}
 	subj := natsx.BlockSubject(height)
-	if err := publish(subj, raw, natsx.MsgID(subj, height, 0)); err != nil {
+	if err := publish(subj, raw, natsx.MsgID(subj, height, 0), btn); err != nil {
 		return n, err
 	}
 	return n + 1, nil

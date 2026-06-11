@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/pokt-network/pocketscribe/internal/consumer"
 	"github.com/pokt-network/pocketscribe/internal/decoders"
@@ -110,6 +114,150 @@ func TestFlushHeightUnknownVersionID(t *testing.T) {
 	err := h.FlushHeight(context.Background(), nil, env, msgs)
 	if err == nil {
 		t.Fatal("expected error: decoder version not found in versionIDs")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FlushHeight with nil envelope (ADR-024 trigger 2-3 partial flush contract)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestFlushHeightNilEnvelope_PartialFlushUsesMessageTime verifies that when
+// env==nil (partial flush triggered by size or time valve), FlushHeight
+// derives height and block_time from msgs[0] rather than the envelope.
+// Specifically: types.Position.Time == time.Unix(0, msgs[0].TimeUnixNano).UTC().
+// The router is invoked with msgs[0].Height; the nil tx is safe because
+// noopDecoder returns nil for every message, so no store call is made.
+func TestFlushHeightNilEnvelope_PartialFlushUsesMessageTime(t *testing.T) {
+	h := New(&fakeRouter{dec: noopDecoder{}}, map[string]int16{"v0.noop": 1})
+
+	const wantHeight int64 = 102542
+	const wantNano int64 = 1_700_000_000_000_000_000
+
+	// Use a KV subject: StoreKVPair with empty bytes unmarshals to zero values,
+	// and noopDecoder.DecodeSupplierKV returns (nil, nil) — no store call needed.
+	msg := consumer.Message{
+		Height:       wantHeight,
+		Subject:      "pokt.kv.supplier.102542",
+		MsgID:        "msg-partial-1",
+		TimeUnixNano: wantNano,
+		Data:         nil, // empty proto bytes — noopDecoder returns nil, no store call
+	}
+
+	// Intercept the router call to verify the height passed is from msg.Height.
+	var routerCalledWith int64
+	capturingRouter := &capturingFakeRouter{
+		dec:          noopDecoder{},
+		onDecoderFor: func(h int64) { routerCalledWith = h },
+	}
+	h2 := New(capturingRouter, map[string]int16{"v0.noop": 1})
+
+	if err := h2.FlushHeight(context.Background(), nil, nil, []consumer.Message{msg}); err != nil {
+		t.Fatalf("FlushHeight nil-env: unexpected error: %v", err)
+	}
+	if routerCalledWith != wantHeight {
+		t.Fatalf("router called with height %d, want %d", routerCalledWith, wantHeight)
+	}
+	_ = h // suppress unused warning for non-capturing handler
+}
+
+// capturingFakeRouter is like fakeRouter but calls onDecoderFor on each invocation.
+type capturingFakeRouter struct {
+	dec          decoders.Decoder
+	err          error
+	onDecoderFor func(int64)
+}
+
+func (c *capturingFakeRouter) DecoderFor(h int64) (decoders.Decoder, error) {
+	if c.onDecoderFor != nil {
+		c.onDecoderFor(h)
+	}
+	return c.dec, c.err
+}
+
+// capturePosDecoder returns a SupplierKVRecord with a non-nil Supplier and
+// retains the pointer: the handler stamps Position on that exact record BEFORE
+// the store call, so the test can assert the Position used for the rows.
+type capturePosDecoder struct {
+	noopDecoder
+	captured *types.SupplierKVRecord
+}
+
+func (d *capturePosDecoder) DecodeSupplierKV(_, _ []byte, _ bool) (*types.SupplierKVRecord, error) {
+	rec := &types.SupplierKVRecord{Supplier: &types.SupplierSnapshot{OperatorAddress: "pokt1capture"}}
+	d.captured = rec
+	return rec, nil
+}
+
+// fakeTx is a minimal pgx.Tx for unit tests: only Exec is implemented (returns
+// success); any other method panics via the nil embedded interface.
+type fakeTx struct{ pgx.Tx }
+
+func (fakeTx) Exec(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+// TestFlushHeightNilEnvelope_BlockTimeDerivedFromMessage verifies that in the
+// nil-env partial-flush path the Position stamped on rows is EXACTLY
+// {Height: msgs[0].Height, Time: time.Unix(0, msgs[0].TimeUnixNano).UTC()}.
+// capturePosDecoder retains the decoded record; the handler mutates its
+// Position before calling store.InsertSupplierSnapshot (fakeTx absorbs the Exec).
+func TestFlushHeightNilEnvelope_BlockTimeDerivedFromMessage(t *testing.T) {
+	const wantHeight int64 = 102542
+	const wantNano int64 = 1_700_000_000_000_000_000
+	wantTime := time.Unix(0, wantNano).UTC()
+
+	dec := &capturePosDecoder{}
+	h := New(&fakeRouter{dec: dec}, map[string]int16{"v0.noop": 1})
+	msg := consumer.Message{
+		Height:       wantHeight,
+		Subject:      "pokt.kv.supplier.102542",
+		MsgID:        "kv-partial-1",
+		TimeUnixNano: wantNano,
+		Data:         nil, // empty proto bytes — StoreKVPair unmarshals to zero values
+	}
+	if err := h.FlushHeight(context.Background(), fakeTx{}, nil, []consumer.Message{msg}); err != nil {
+		t.Fatalf("FlushHeight nil-env KV path: unexpected error: %v", err)
+	}
+	if dec.captured == nil || dec.captured.Supplier == nil {
+		t.Fatal("decoder was not invoked / record not captured")
+	}
+	got := dec.captured.Supplier.Position
+	if got.Height != wantHeight {
+		t.Fatalf("Position.Height = %d, want %d", got.Height, wantHeight)
+	}
+	if !got.Time.Equal(wantTime) {
+		t.Fatalf("Position.Time = %v, want %v", got.Time, wantTime)
+	}
+	if loc := got.Time.Location(); loc != time.UTC {
+		t.Fatalf("Position.Time location = %v, want UTC", loc)
+	}
+}
+
+// TestFlushHeightNilEnvelope_NilMsgsReturnsError verifies that FlushHeight
+// with env==nil AND empty msgs returns an error (no source for block_time).
+func TestFlushHeightNilEnvelope_NilMsgsReturnsError(t *testing.T) {
+	h := New(&fakeRouter{}, nil)
+	err := h.FlushHeight(context.Background(), nil, nil, nil)
+	if err == nil {
+		t.Fatal("expected error: partial flush with no messages and no envelope")
+	}
+}
+
+// TestFlushHeightNilEnvelope_ZeroTimeUnixNanoReturnsError verifies that
+// FlushHeight with env==nil and msgs[0].TimeUnixNano==0 returns an error
+// (block_time cannot be derived — ADR-022 Pocket-Block-Time header missing).
+func TestFlushHeightNilEnvelope_ZeroTimeUnixNanoReturnsError(t *testing.T) {
+	h := New(&fakeRouter{dec: noopDecoder{}}, map[string]int16{"v0.noop": 1})
+	msg := consumer.Message{
+		Height:       102542,
+		Subject:      "pokt.tx.102542.0",
+		MsgID:        "no-time-partial",
+		TimeUnixNano: 0, // no Pocket-Block-Time header
+		Data:         nil,
+	}
+	err := h.FlushHeight(context.Background(), nil, nil, []consumer.Message{msg})
+	if err == nil {
+		t.Fatal("expected error: partial flush requires Pocket-Block-Time (msgs[0].TimeUnixNano > 0)")
 	}
 }
 

@@ -94,3 +94,19 @@ Rules:
 - [ADR-024](ADR-024-consumer-batching.md) — batching discipline
 - [ADR-025](ADR-025-indexer-coordination.md) — indexer coordination
 - `internal/nats/subjects.go` — canonical subject constructors
+
+## Amendment (Phase G, 2026-06-10): Pocket-Block-Time header
+
+Every fan-out message (per-tx, per-event, per-KV) AND the envelope carries the
+NATS header `Pocket-Block-Time` = the consensus block time as unix nanoseconds,
+taken from the block header the sidecar already decodes for the envelope.
+
+Rationale: ADR-024 triggers 2-3 (partial flush) write rows BEFORE the envelope
+arrives, but Invariant 1 requires every row to carry `(block_height, block_time)`
+from the consensus header. The height is in the subject; the time must therefore
+travel on each fan-out message. ~30 bytes per message; well under the caps.
+
+The header is informative on the envelope (its payload already carries
+`time_unix_nano`); it is REQUIRED on fan-out messages. Consumers treat a fan-out
+message without the header as un-partial-flushable (valves skip it with a WARN);
+the block-boundary fence path is unaffected.

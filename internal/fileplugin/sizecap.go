@@ -18,14 +18,14 @@ const (
 	HardCapBytes = 1 << 20
 )
 
-type publishFn func(subj string, data []byte, msgID string) error
+type publishFn func(subj string, data []byte, msgID string, blockTimeNano int64) error
 
 // capPublish decorates publish with the payload size policy. The returned
 // error on a hard-cap violation aborts the whole height (Bootstrap stops at
 // that height) — the sidecar must never skip a message inside a block.
 // fpm may be nil (tests without a registry).
 func capPublish(publish publishFn, logger *slog.Logger, fpm *metrics.FilePlugin) publishFn {
-	return func(subj string, data []byte, msgID string) error {
+	return func(subj string, data []byte, msgID string, blockTimeNano int64) error {
 		switch {
 		case len(data) > HardCapBytes:
 			if fpm != nil {
@@ -41,6 +41,6 @@ func capPublish(publish publishFn, logger *slog.Logger, fpm *metrics.FilePlugin)
 			logger.Warn("payload exceeds 256 KiB soft cap",
 				"subject", subj, "bytes", len(data), "msg_id", msgID)
 		}
-		return publish(subj, data, msgID)
+		return publish(subj, data, msgID, blockTimeNano)
 	}
 }
