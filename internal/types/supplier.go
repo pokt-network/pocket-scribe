@@ -86,6 +86,20 @@ type EventSupplierServiceConfigActivated struct {
 	ServiceID        string
 }
 
+// EventSupplierSlashed → event_supplier_slashed. Fields stable across
+// [v0_1_27..v0_1_33]; v0_1_34 adds SupplierStakeAfterSlash (tag=9).
+// Pre-v0_1_34 rows leave SupplierStakeAfterSlash as empty string.
+type EventSupplierSlashed struct {
+	Position
+	ProofMissingPenalty     string
+	ServiceID               string
+	ApplicationAddress      string
+	SessionEndBlockHeight   int64
+	ClaimProofStatusInt     int32
+	SupplierOperatorAddress string
+	SupplierStakeAfterSlash string // v0_1_34+: supplier's remaining stake post-slash; "" in prior eras
+}
+
 // SupplierEvent is a tagged union: exactly one field is non-nil.
 type SupplierEvent struct {
 	Staked                 *EventSupplierStaked
@@ -93,6 +107,7 @@ type SupplierEvent struct {
 	UnbondingEnd           *EventSupplierUnbondingEnd
 	UnbondingCanceled      *EventSupplierUnbondingCanceled
 	ServiceConfigActivated *EventSupplierServiceConfigActivated
+	Slashed                *EventSupplierSlashed
 }
 
 // SupplierSnapshot → supplier_history (append-only, PK (operator_address,
