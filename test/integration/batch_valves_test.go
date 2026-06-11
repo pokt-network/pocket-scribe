@@ -255,7 +255,7 @@ func TestBatchValvesSizeFlushAndEviction(t *testing.T) {
 			MaxAge:     30 * time.Second, // disable time valve for this sub-test
 			EvictAfter: 5 * time.Minute,
 		})
-		waitConsumerRegistered(t, "supplier", 5*time.Second)
+		waitConsumerRegistered(t)
 
 		// Publish 12 fan-out KV messages for height 3. With MaxRows=5 this should
 		// trigger 2 partial flushes (after msg 5 and after msg 10).
@@ -340,7 +340,7 @@ func TestBatchValvesSizeFlushAndEviction(t *testing.T) {
 			MaxAge:     200 * time.Millisecond,
 			EvictAfter: time.Second,
 		})
-		waitConsumerRegistered(t, "supplier", 5*time.Second)
+		waitConsumerRegistered(t)
 
 		// Publish fan-out messages WITHOUT publishing the envelope.
 		js := nats.Client.JetStream()

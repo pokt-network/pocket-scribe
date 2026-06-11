@@ -405,7 +405,7 @@ func TestBatchRuntimeContextCancelAndRestart(t *testing.T) { // spec test 22b
 
 	// Start supplier runtime; register it so IsSealed is aware; then immediately cancel.
 	supplierRH1 := startSupplierRuntime(t, stream, ids)
-	waitConsumerRegistered(t, "supplier", 5*time.Second)
+	waitConsumerRegistered(t)
 	supplierRH1.stop() // cancel before (or mid) processing
 
 	// Restart with a fresh runtime. NATS redelivers all unacked envelope messages.

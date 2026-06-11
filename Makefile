@@ -9,7 +9,7 @@
         verify-migrations regenerate-migrations regenerate-snapshots \
         cluster-up cluster-down \
         migrate-dev migrate-dev-status migrate-dev-down \
-        ci vet fmt-check fmt lint test test-integration ci-race \
+        ci ci-full vet fmt-check fmt lint lint-integration test test-race test-integration ci-race \
         coverage \
         clean \
         tools-proto gen-proto gen-check
@@ -96,7 +96,9 @@ migrate-dev-down: ## Roll back one migration on dev Postgres (use with care)
 
 # ─── CI checks (lint, vet, test, fmt) ──────────────────────────────────────
 
-ci: vet fmt-check lint test ## Run all CI checks
+ci: vet fmt-check lint lint-integration test-race ## Fast CI checks (no containers)
+
+ci-full: ci coverage ## Everything incl. integration + coverage gate
 
 vet: ## go vet on the whole module
 	@go vet ./...
@@ -115,13 +117,19 @@ fmt: ## Apply gofmt to the whole tree
 lint: ## Run golangci-lint
 	@golangci-lint run ./...
 
-test: ## Run go test (no race detector — see ci-race for that)
+lint-integration: ## Lint with the integration build tag
+	@golangci-lint run --build-tags=integration ./...
+
+test: ## Run go test (no race detector)
 	@go test ./...
+
+test-race: ## Unit tests under the race detector
+	@go test -race -count=1 ./...
 
 test-integration: ## Run container-backed integration tests (needs Docker)
 	@go test -tags=integration -count=1 ./test/...
 
-ci-race: ## Run go test with the race detector
+ci-race: ## Run go test with the race detector (alias for test-race)
 	@go test -race ./...
 
 coverage: ## Combined unit+integration coverage with per-package gate (90/100)

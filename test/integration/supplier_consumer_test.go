@@ -141,12 +141,16 @@ func loadDecoderVersionIDs(t *testing.T) map[string]int16 {
 	return m
 }
 
-// waitConsumerRegistered polls consumer_registry for the named consumer until it
-// appears or the timeout elapses. Used to synchronize Test 21 (the supplier
+// waitConsumerRegistered polls consumer_registry for the supplier consumer until
+// it appears or 5 s elapse. Used to synchronize tests where the supplier
 // runtime registers asynchronously; stopping it before registration would leave
-// no row and make IsSealed trivially true).
-func waitConsumerRegistered(t *testing.T, name string, timeout time.Duration) {
+// no row and make IsSealed trivially true.
+func waitConsumerRegistered(t *testing.T) {
 	t.Helper()
+	const (
+		name    = "supplier"
+		timeout = 5 * time.Second
+	)
 	ctx := context.Background()
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
@@ -587,7 +591,7 @@ func TestSupplierANDSealWithQuietHeights(t *testing.T) { // spec test 21
 	// Step 1: start the supplier runtime so it self-registers in consumer_registry,
 	// then immediately stop it before any bootstrap messages arrive.
 	supplierRH1 := startSupplierRuntime(t, stream, ids)
-	waitConsumerRegistered(t, "supplier", 5*time.Second)
+	waitConsumerRegistered(t)
 	supplierRH1.stop()
 
 	// Step 2: bootstrap the 3 v0.1.0 negative fixtures (heights 1, 2, 3).
