@@ -70,7 +70,7 @@ func TestFanOutHeightMissingDataFile(t *testing.T) {
 		t.Fatalf("write meta: %v", err)
 	}
 
-	publish := func(_ string, _ []byte, _ string) error { return nil }
+	publish := func(_ string, _ []byte, _ string, _ int64) error { return nil }
 	_, err := fanOutHeight(nil, publish, 1, metaPath, "testchain") //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for missing data file")
@@ -94,7 +94,7 @@ func TestFanOutHeightCorruptMeta(t *testing.T) {
 		t.Fatalf("write data: %v", err)
 	}
 
-	publish := func(_ string, _ []byte, _ string) error { return nil }
+	publish := func(_ string, _ []byte, _ string, _ int64) error { return nil }
 	_, err := fanOutHeight(nil, publish, 1, metaPath, "testchain") //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for corrupt meta file")
@@ -119,7 +119,7 @@ func TestFanOutHeightPublishError(t *testing.T) {
 
 	publishErr := errors.New("nats: server unavailable")
 	publishCalls := 0
-	publish := func(_ string, _ []byte, _ string) error {
+	publish := func(_ string, _ []byte, _ string, _ int64) error {
 		publishCalls++
 		return publishErr
 	}
@@ -148,7 +148,7 @@ func TestFanOutHeightHappyNoTxs(t *testing.T) {
 	}
 
 	var published []string
-	publish := func(subj string, _ []byte, _ string) error {
+	publish := func(subj string, _ []byte, _ string, _ int64) error {
 		published = append(published, subj)
 		return nil
 	}
@@ -186,7 +186,7 @@ func TestFanOutHeightWithKVPair(t *testing.T) {
 	}
 
 	var published []string
-	publish := func(subj string, _ []byte, _ string) error {
+	publish := func(subj string, _ []byte, _ string, _ int64) error {
 		published = append(published, subj)
 		return nil
 	}
@@ -256,7 +256,7 @@ func TestFanOutHeightWithTxAndEvents(t *testing.T) {
 	}
 
 	var published []string
-	publish := func(subj string, _ []byte, _ string) error {
+	publish := func(subj string, _ []byte, _ string, _ int64) error {
 		published = append(published, subj)
 		return nil
 	}
@@ -313,7 +313,7 @@ func TestFanOutHeightPublishErrorOnEvent(t *testing.T) {
 	}
 
 	callCount := 0
-	publish := func(subj string, _ []byte, _ string) error {
+	publish := func(subj string, _ []byte, _ string, _ int64) error {
 		callCount++
 		if strings.HasPrefix(subj, "pokt.events.") {
 			return errors.New("publish event failed")
@@ -345,7 +345,7 @@ func TestFanOutHeightCorruptRequestProto(t *testing.T) {
 		t.Fatalf("write data: %v", err)
 	}
 
-	publish := func(_ string, _ []byte, _ string) error { return nil }
+	publish := func(_ string, _ []byte, _ string, _ int64) error { return nil }
 	_, err := fanOutHeight(nil, publish, 1, metaPath, "testchain") //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for corrupt RequestFinalizeBlock proto")
@@ -378,7 +378,7 @@ func TestFanOutHeightCorruptResponseProto(t *testing.T) {
 		t.Fatalf("write data: %v", err)
 	}
 
-	publish := func(_ string, _ []byte, _ string) error { return nil }
+	publish := func(_ string, _ []byte, _ string, _ int64) error { return nil }
 	_, err = fanOutHeight(nil, publish, 1, metaPath, "testchain") //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for corrupt ResponseFinalizeBlock proto")
@@ -407,10 +407,76 @@ func TestFanOutHeightCorruptKVRecord(t *testing.T) {
 		t.Fatalf("write data: %v", err)
 	}
 
-	publish := func(_ string, _ []byte, _ string) error { return nil }
+	publish := func(_ string, _ []byte, _ string, _ int64) error { return nil }
 	_, err := fanOutHeight(nil, publish, 1, metaPath, "testchain") //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for truncated KV record")
+	}
+}
+
+// TestFanOutHeightBlockTimeStamped verifies that blockTimeNano is non-zero and
+// equals header.Time.UnixNano() for every message published (ADR-022 amendment).
+func TestFanOutHeightBlockTimeStamped(t *testing.T) {
+	dir := t.TempDir()
+	metaPath := filepath.Join(dir, "block-100-meta")
+	dataPath := strings.TrimSuffix(metaPath, "-meta") + "-data"
+
+	blockTime := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
+	wantNano := blockTime.UnixNano()
+
+	txBytes := []byte("fake-tx")
+	blockEvent := abci.Event{Type: "transfer"}
+	req := &abci.RequestFinalizeBlock{
+		Height: 100,
+		Hash:   make([]byte, 32),
+		Time:   blockTime,
+		Txs:    [][]byte{txBytes},
+	}
+	resp := &abci.ResponseFinalizeBlock{
+		TxResults: []*abci.ExecTxResult{{Code: 0}},
+		Events:    []abci.Event{blockEvent},
+	}
+	reqBytes, err := req.Marshal()
+	if err != nil {
+		t.Fatalf("marshal req: %v", err)
+	}
+	respBytes, err := resp.Marshal()
+	if err != nil {
+		t.Fatalf("marshal resp: %v", err)
+	}
+	meta := buildThreeRecordMetaWithPayloads(t, reqBytes, respBytes)
+	if err := os.WriteFile(metaPath, meta, 0o600); err != nil {
+		t.Fatalf("write meta: %v", err)
+	}
+	// One KV entry so we test all four fan-out paths.
+	data := buildKVData(t, "application", []byte("key"), []byte("val"))
+	if err := os.WriteFile(dataPath, data, 0o600); err != nil {
+		t.Fatalf("write data: %v", err)
+	}
+
+	var gotNanos []int64
+	publish := func(_ string, _ []byte, _ string, blockTimeNano int64) error {
+		gotNanos = append(gotNanos, blockTimeNano)
+		return nil
+	}
+	n, err := fanOutHeight(nil, publish, 100, metaPath, "testchain") //nolint:staticcheck
+	if err != nil {
+		t.Fatalf("fanOutHeight: %v", err)
+	}
+	// 1 tx + 1 event + 1 kv + 1 envelope = 4
+	if n != 4 {
+		t.Fatalf("n = %d, want 4", n)
+	}
+	if len(gotNanos) != 4 {
+		t.Fatalf("publish called %d times, want 4", len(gotNanos))
+	}
+	for i, nano := range gotNanos {
+		if nano <= 0 {
+			t.Errorf("message[%d] blockTimeNano = %d, want > 0", i, nano)
+		}
+		if nano != wantNano {
+			t.Errorf("message[%d] blockTimeNano = %d, want %d", i, nano, wantNano)
+		}
 	}
 }
 

@@ -24,22 +24,22 @@ func TestCapPublishPolicy(t *testing.T) { // spec test 27 (§11.1)
 	reg := prometheus.NewRegistry()
 	fpm := metrics.NewFilePlugin(reg)
 	var published int
-	rec := func(_ string, _ []byte, _ string) error { published++; return nil }
+	rec := func(_ string, _ []byte, _ string, _ int64) error { published++; return nil }
 	p := capPublish(rec, discardLogger(), fpm)
 
 	// Small payload: published, no counters.
-	if err := p("pokt.tx.1.0", make([]byte, 1024), "a"); err != nil {
+	if err := p("pokt.tx.1.0", make([]byte, 1024), "a", 0); err != nil {
 		t.Fatal(err)
 	}
 	// Exactly AT the soft cap: still silent (cap is exclusive).
-	if err := p("pokt.tx.1.1", make([]byte, SoftCapBytes), "b"); err != nil {
+	if err := p("pokt.tx.1.1", make([]byte, SoftCapBytes), "b", 0); err != nil {
 		t.Fatal(err)
 	}
 	if got := testutil.ToFloat64(fpm.OversizeSoft); got != 0 {
 		t.Fatalf("soft counter = %v after at-cap payload, want 0", got)
 	}
 	// Above soft cap: WARN + counter, still published.
-	if err := p("pokt.tx.1.2", make([]byte, SoftCapBytes+1), "c"); err != nil {
+	if err := p("pokt.tx.1.2", make([]byte, SoftCapBytes+1), "c", 0); err != nil {
 		t.Fatalf("soft-cap payload must still publish: %v", err)
 	}
 	if got := testutil.ToFloat64(fpm.OversizeSoft); got != 1 {
@@ -47,7 +47,7 @@ func TestCapPublishPolicy(t *testing.T) { // spec test 27 (§11.1)
 	}
 	// Above hard cap: refused with error, counter, NOT published.
 	before := published
-	if err := p("pokt.tx.1.3", make([]byte, HardCapBytes+1), "d"); err == nil {
+	if err := p("pokt.tx.1.3", make([]byte, HardCapBytes+1), "d", 0); err == nil {
 		t.Fatal("hard-cap payload must be refused")
 	}
 	if published != before {
@@ -60,11 +60,11 @@ func TestCapPublishPolicy(t *testing.T) { // spec test 27 (§11.1)
 
 func TestCapPublishNilMetrics(t *testing.T) {
 	// Tests pass nil metrics — the wrapper must not panic.
-	p := capPublish(func(_ string, _ []byte, _ string) error { return nil }, discardLogger(), nil)
-	if err := p("s", make([]byte, SoftCapBytes+1), "m"); err != nil {
+	p := capPublish(func(_ string, _ []byte, _ string, _ int64) error { return nil }, discardLogger(), nil)
+	if err := p("s", make([]byte, SoftCapBytes+1), "m", 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := p("s", make([]byte, HardCapBytes+1), "m"); err == nil {
+	if err := p("s", make([]byte, HardCapBytes+1), "m", 0); err == nil {
 		t.Fatal("want refusal")
 	}
 }
@@ -93,7 +93,7 @@ func TestFanOutHeightRefusesOversizeTx(t *testing.T) { // spec test 27, fan-out 
 	if err := os.WriteFile(dataPath, []byte{}, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	p := capPublish(func(_ string, _ []byte, _ string) error { return nil }, discardLogger(), nil)
+	p := capPublish(func(_ string, _ []byte, _ string, _ int64) error { return nil }, discardLogger(), nil)
 	if _, err := fanOutHeight(context.Background(), p, 42, metaPath, "pocket"); err == nil {
 		t.Fatal("oversize tx must abort the height")
 	}
