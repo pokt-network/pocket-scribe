@@ -203,5 +203,5 @@ vs. cloud-managed equivalent: easily $5,000-15,000+ for same scale. Self-hosting
 ## See also
 
 - ADR-007 (per-module consumers with queue groups) — rationale.
-- `docs/operations/deployment.md` — actual K8s manifests / Helm values (TODO).
-- `docs/operations/disaster-recovery.md` — detailed runbooks (TODO).
+- `docs/operations/deployment.md` — actual K8s manifests / Helm values.
+- `docs/operations/disaster-recovery.md` — detailed runbooks.

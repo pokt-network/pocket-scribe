@@ -215,7 +215,7 @@ For every change:
 ## CI matrix
 
 ```yaml
-# .github/workflows/ci.yml  (TODO)
+# .github/workflows/ci.yml
 jobs:
   lint:        # golangci-lint
   test-unit:   # make test
@@ -251,6 +251,6 @@ jobs:
 
 ## See also
 
-- ADR-012 (testing strategy) — full rationale (TODO).
+- ADR-012 (testing strategy) — full rationale.
 - `.claude/agents/pocketscribe-test-author.md` — agent guide for writing tests at each layer.
 - `docs/operations/development-workflow.md` — TDD loop in practice.

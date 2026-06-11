@@ -584,21 +584,23 @@ These 27 are the floor. Additional tests will be added during implementation as 
 
 ```
 ps fileplugin --bootstrap --input-dir <path> --max-height <H>
-ps fileplugin                                  # live mode (Phase 2 polish)
+ps fileplugin                                  # live mode (Phase 2 polish) [DEFERRED]
 ps consumer block
 ps consumer supplier
-ps indexer                                     # runs all enabled consumers in one process
+ps indexer                                     # runs all enabled consumers in one process [DEFERRED → Slice 2]
 ps reconciler                                  # upgrades refresh only in Slice 1
 ps sync-upgrades --config configs/networks/<name>.yaml
 ps deregister-consumer <id>                    # admin: flip consumer_registry.active=false
 ps migrate up
-ps inspect cursors                             # show consumer_consolidation state
-ps inspect streams                             # show NATS JetStream state
-ps doctor                                      # health check
+ps inspect cursors                             # show consumer_consolidation state [DEFERRED → Slice 2]
+ps inspect streams                             # show NATS JetStream state [DEFERRED → Slice 2]
+ps doctor                                      # health check [DEFERRED → Slice 2]
 ps version
 ```
 
 Each subcommand is implemented in `internal/app/<name>/`. The `cmd/ps/main.go` is thin — just wires Cobra to the app packages.
+
+> **Slice 1 closure note (2026-06-11)**: `ps indexer`, `ps inspect`, `ps doctor` and fileplugin live mode were NOT shipped in Slice 1 (stubs or absent); they are registered in `docs/TECH-DEBT.md` for Slice 2 planning. Everything else above is implemented.
 
 ---
 

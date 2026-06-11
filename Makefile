@@ -114,7 +114,8 @@ fmt-check: ## Verify gofmt is clean
 fmt: ## Apply gofmt to the whole tree
 	@gofmt -w .
 
-lint: ## Run golangci-lint
+lint: ## Run golangci-lint (config verify catches schema drift the binary ignores silently)
+	@golangci-lint config verify
 	@golangci-lint run ./...
 
 lint-integration: ## Lint with the integration build tag

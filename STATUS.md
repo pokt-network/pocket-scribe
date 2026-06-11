@@ -10,7 +10,7 @@ Last updated: 2026-06-11 (Slice 1 done — phases A–G, exit criterion §15 met
 
 ### Production Go runtime (Slice 1, main=226245e)
 
-- ✅ **`cmd/ps`** — single binary, cobra subcommands: `fileplugin`, `consumer block`, `consumer supplier`, `sync-upgrades`, `reconciler`, `migrate`, `inspect`, `doctor`, `version`
+- ✅ **`cmd/ps`** — single binary, cobra subcommands: `fileplugin --bootstrap`, `consumer block`, `consumer supplier`, `sync-upgrades`, `reconciler`, `migrate`, `deregister-consumer`, `version` (`indexer`, `inspect`, `doctor` and fileplugin live-tail are deferred — see `docs/TECH-DEBT.md`)
 - ✅ **`internal/fileplugin`** — sidecar: reads FilePlugin output, fans out per-tx/event/KV to NATS (ADR-022), stamps `Pocket-Block-Time` header, publishes `pokt.block.{H}` envelope last as the per-height completeness fence
 - ✅ **`internal/consumer`** — generic `BatchRuntime`: buffers messages per height, flushes in one Postgres tx on the fence, ADR-024 triggers 1–3 (fence / size-5000 / time-5s valves), partial-flush via `store.FlushOnly` (no cursor advance), orphan eviction with seen-count protocol; ack-after-commit invariant intact
 - ✅ **`internal/consumer/block`** and **`internal/consumer/supplier`** — module consumers (full supplier lifecycle: `MsgStakeSupplier`, `MsgUnstakeSupplier`, 5 event types, Supplier/ServiceConfigUpdate KV across versions)

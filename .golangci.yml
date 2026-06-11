@@ -6,9 +6,6 @@ version: "2"
 run:
   timeout: 5m
   go: "1.26"
-  exclude-dirs:
-    - archeology
-    - third_party
 
 linters:
   default: standard
@@ -69,6 +66,10 @@ linters:
       comparison: true
 
   exclusions:
+    paths:
+      # v2 replacement for the (invalid) run.exclude-dirs key.
+      - archeology
+      - third_party
     rules:
       - path: "internal/decoders/.*/gen/"
         linters:

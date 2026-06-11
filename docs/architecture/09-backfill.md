@@ -255,5 +255,5 @@ If any of these diverge: investigate before declaring backfill complete.
 ## See also
 
 - ADR-006 (chain as source of truth).
-- `docs/operations/disaster-recovery.md` (TODO) — when to fully rebuild.
+- `docs/operations/disaster-recovery.md` — when to fully rebuild.
 - `docs/research/file-plugin-spec.md` — file format gotchas during heavy backfill.

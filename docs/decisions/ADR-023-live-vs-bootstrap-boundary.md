@@ -1,6 +1,6 @@
 # ADR-023: Live ingest vs bootstrap boundary — indexer never reaches out of NATS
 
-**Status**: Proposed
+**Status**: Accepted (implemented in Slice 1; status updated 2026-06-11)
 **Date**: 2026-05-23
 **Authors**: Jorge Cuesta, Claude
 

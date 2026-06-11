@@ -25,7 +25,7 @@ This separation lets the API layer evolve independently — different teams, dif
 What we ship to make Hasura easy:
 - Stable `*_history` tables and `*` views.
 - `COMMENT ON` everywhere (auto-docs).
-- A canonical metadata snapshot at `configs/downstream/hasura-metadata.json` (TODO).
+- A canonical metadata snapshot at `configs/downstream/hasura-metadata.yaml`.
 
 What we do **not** rely on:
 - Hasura LISTEN/NOTIFY subscriptions (tied to primary; defeats replica scaling).

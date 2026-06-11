@@ -203,4 +203,4 @@ pocketscribe_reconciler_chain_fetch_errors_total{module}
 
 - ADR-006 (chain as source of truth) — the foundation.
 - ADR-009 (bucket sealing) — sealing uses `consumer_consolidation` which interacts with reconciler corrections.
-- `docs/operations/runbook.md` — on-call procedure when reconciler alerts fire (TODO).
+- `docs/operations/runbook.md` — on-call procedure when reconciler alerts fire.

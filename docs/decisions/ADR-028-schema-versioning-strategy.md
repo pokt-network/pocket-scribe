@@ -1,6 +1,6 @@
 # ADR-028: Schema versioning strategy — nullable superset, decoder-as-adapter
 
-**Status**: Proposed
+**Status**: Accepted (implemented in Slice 1; status updated 2026-06-11)
 **Date**: 2026-05-30
 **Authors**: jorge.s.cuesta@gmail.com (with Claude)
 **Related**: ADR-005 (append-only pure), ADR-006 (chain as source of truth), ADR-008 (versioned decoders), ADR-016 (pgx + sqlc + goose), ADR-018 (no hardcoded upgrades)
