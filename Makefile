@@ -10,6 +10,7 @@
         cluster-up cluster-down \
         migrate-dev migrate-dev-status migrate-dev-down \
         ci vet fmt-check fmt lint test test-integration ci-race \
+        coverage \
         clean \
         tools-proto gen-proto gen-check
 
@@ -122,6 +123,12 @@ test-integration: ## Run container-backed integration tests (needs Docker)
 
 ci-race: ## Run go test with the race detector
 	@go test -race ./...
+
+coverage: ## Combined unit+integration coverage with per-package gate (90/100)
+	@go test -count=1 -coverprofile=cover.unit.out -coverpkg=./internal/... ./internal/...
+	@go test -tags=integration -count=1 -coverprofile=cover.int.out -coverpkg=./internal/... ./test/...
+	@go run ./scripts/covmerge cover.merged.out cover.unit.out cover.int.out
+	@go run ./scripts/covgate cover.merged.out
 
 # ─── Build ─────────────────────────────────────────────────────────────────
 

@@ -39,6 +39,7 @@ TODO.local.md
 # Go test artifacts
 *.test
 *.out
+cover.*.out
 coverage.html
 coverage.txt
 *.coverprofile
