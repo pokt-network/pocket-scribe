@@ -95,3 +95,40 @@ redeliveries by Nats-Msg-Id so an AckWait redelivery cannot double-buffer.
 Quiet heights (zero fan-out messages for a consumer's filters) flush an EMPTY
 batch when the envelope arrives — this is what advances the supplier cursor
 over heights with no supplier activity.
+
+## Amendment (Phase G, 2026-06-10): valves implemented + eviction semantics
+
+Triggers 2 (size cap) and 3 (time cap) are implemented in
+`internal/consumer/batch.go`. Partial flushes run through `store.FlushOnly`
+(BEGIN → handler write → COMMIT; NO cursor advance, NO processed_heights row)
+and pass a nil envelope to `BatchHandler.FlushHeight` — handlers derive
+`types.Position` from `Message.TimeUnixNano` (the `Pocket-Block-Time` header,
+ADR-022 amendment) when the envelope is nil. Flushed messages stay UNACKED and
+their Nats-Msg-Ids stay in the dedup set; the fence acks everything after the
+final commit, exactly as before.
+
+Orphaned-buffer eviction (new): a height buffer whose envelope has not arrived
+within `batch_evict_after` (default 10× `batch_max_age` = 50 s) is dropped from
+memory WITHOUT acking — metric `pocketscribe_consumer_evictions_total`, WARN
+log. NATS redelivers the unacked messages on AckWait expiry and the buffer
+reconstructs. Redelivery timing is NOT ordered relative to a Nak'd envelope
+(AckWait timers are per-message), so the runtime cannot assume the rebuilt
+buffer is complete when a late envelope arrives. Instead it records the number
+of distinct Nats-Msg-Ids seen at eviction time (`evicted[height] = len(seen)`,
+which includes partially-flushed messages — their ids stay in the dedup set).
+The fence for an evicted height is Nak'd (mark KEPT) until the rebuilt
+buffer's seen-count reaches the recorded count; only then does the flush
+proceed and the mark clear. A late envelope can therefore never seal a hole
+left by an eviction, regardless of redelivery interleaving. If a rebuilding
+buffer is evicted again, the recorded count is `max(previous, len(seen))`.
+Process restart clears the mark set — safe, because on re-subscribe JetStream
+redelivers ALL outstanding unacked messages in stream-sequence order (fan-out
+before envelope), the same crash-recovery model tests 3/12 already verify; the
+mark only exists to cover the steady-state case where fan-out AckWait timers
+have not yet expired when the Nak'd envelope returns.
+
+Knobs (BatchConfig, defaults per this ADR): `MaxRows` 5000, `MaxAge` 5 s,
+`EvictAfter` 50 s. Metric `pocketscribe_consumer_partial_flushes_total
+{consumer,reason}` with reason ∈ {size,time}. The evicted-heights map grows
+only with heights whose envelope NEVER arrives (chronic sidecar failure) and
+empties on restart; bounded-growth assumption documented in code.
