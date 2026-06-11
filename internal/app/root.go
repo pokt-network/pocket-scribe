@@ -5,7 +5,9 @@ import (
 
 	appconsumer "github.com/pokt-network/pocketscribe/internal/app/consumer"
 	"github.com/pokt-network/pocketscribe/internal/app/deregister"
+	"github.com/pokt-network/pocketscribe/internal/app/doctor"
 	appfileplugin "github.com/pokt-network/pocketscribe/internal/app/fileplugin"
+	"github.com/pokt-network/pocketscribe/internal/app/inspect"
 	"github.com/pokt-network/pocketscribe/internal/app/migrate"
 	"github.com/pokt-network/pocketscribe/internal/app/reconciler"
 	appsync "github.com/pokt-network/pocketscribe/internal/app/sync"
@@ -26,5 +28,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(reconciler.NewCmd())
 	root.AddCommand(appconsumer.NewCmd())
 	root.AddCommand(appfileplugin.NewCmd())
+	root.AddCommand(inspect.NewCmd())
+	root.AddCommand(doctor.NewCmd())
 	return root
 }

@@ -78,7 +78,7 @@ Per version, ~3 fixtures are selected:
 | v0.1.27 | 247893 | 287931 | `v0_1_27` | 247894 (boundary-proxy quiet; boundary 247893 is 15 MB — skipped per >5 MB rule), 247921 (msg_stake×9 + events_staked×9 + KV×9 — validates decoder v0_1_27 break), 260001 (quiet) | covered |
 | v0.1.28 | 287932 | 382249 | `v0_1_28` | 287932 (boundary), 290584 (supplier activity), 295476 (quiet) | covered |
 | v0.1.29 | 382250 | 484472 | `v0_1_29` | 382250 (boundary/quiet), 385145 (supplier activity) | covered |
-| v0.1.30 | 484473 | 635505 | `v0_1_30` | — | PENDING — no archived data (archeology running on multi-1; when the tarball lands in the bucket, run the `curate-version-fixtures` skill) |
+| v0.1.30 | 484473 | 635505 | `v0_1_30` | 484473 (boundary; tx_count=0, 1207 KV operators — full-network state snapshot at upgrade), 490000 (quiet; tx_count=0, no supplier KV), 533275 (msg_stake×200 + events_staked×200 + KV×200 + scu=10400 — max-activity block) | covered |
 | v0.1.31 | 635506 | 703869 | `v0_1_30` | — | PENDING — no archived data (archeology running on multi-1; when the tarball lands in the bucket, run the `curate-version-fixtures` skill) |
 | v0.1.33 | 703870 | — | `v0_1_30` | — | PENDING — no archived data (archeology running on multi-1; when the tarball lands in the bucket, run the `curate-version-fixtures` skill) |
 

@@ -1,0 +1,126 @@
+syntax = "proto3";
+package pocket.service;
+
+option go_package = "github.com/pokt-network/poktroll/x/service/types";
+option (gogoproto.stable_marshaler_all) = true;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "cosmos/base/query/v1beta1/pagination.proto";
+
+import "pocket/service/params.proto";
+import "pocket/shared/service.proto";
+import "pocket/service/relay_mining_difficulty.proto";
+
+// Query defines the gRPC querier service.
+service Query {
+
+  // Parameters queries the parameters of the module.
+  rpc Params (QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/service/params";
+
+  }
+
+  // Queries a list of Service items.
+  rpc Service    (QueryGetServiceRequest) returns (QueryGetServiceResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/service/service/{id}";
+
+  }
+  rpc AllServices (QueryAllServicesRequest) returns (QueryAllServicesResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/service/service";
+
+  }
+
+  // Queries a list of RelayMiningDifficulty items.
+  rpc RelayMiningDifficulty    (QueryGetRelayMiningDifficultyRequest) returns (QueryGetRelayMiningDifficultyResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/service/relay_mining_difficulty/{serviceId}";
+
+  }
+  rpc RelayMiningDifficultyAll (QueryAllRelayMiningDifficultyRequest) returns (QueryAllRelayMiningDifficultyResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/service/relay_mining_difficulty";
+  }
+
+  // Queries the relay mining difficulty that was effective at a specific block height for a service.
+  rpc RelayMiningDifficultyAtHeight (QueryGetRelayMiningDifficultyAtHeightRequest) returns (QueryGetRelayMiningDifficultyAtHeightResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/service/relay_mining_difficulty/{serviceId}/at_height/{blockHeight}";
+  }
+
+  // Queries the history of relay mining difficulty changes for a service.
+  rpc RelayMiningDifficultyHistory (QueryRelayMiningDifficultyHistoryRequest) returns (QueryRelayMiningDifficultyHistoryResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/service/relay_mining_difficulty/{serviceId}/history";
+  }
+}
+// QueryParamsRequest is request type for the Query/Params RPC method.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method.
+message QueryParamsResponse {
+
+  // params holds all the parameters of this module.
+  Params params = 1 [(gogoproto.nullable) = false, (amino.dont_omitempty) = true];
+}
+
+message QueryGetServiceRequest {
+  // TODO_IMPROVE: We could support getting services by name.
+  string id = 1;
+
+  // if false (default), include full service data including metadata.
+  // if true, exclude metadata to reduce payload size.
+  // For backwards compatibility and typical use cases, the default is false.
+  bool dehydrated = 2;
+}
+
+message QueryGetServiceResponse {
+  pocket.shared.Service service = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryAllServicesRequest {
+  cosmos.base.query.v1beta1.PageRequest pagination = 1;
+
+  // if false, include full service data including metadata.
+  // if true (default behavior), exclude metadata to reduce payload size.
+  // For backwards compatibility and performance, the default is true.
+  bool dehydrated = 2;
+}
+
+message QueryAllServicesResponse {
+  repeated pocket.shared.Service service = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+message QueryGetRelayMiningDifficultyRequest {
+  string serviceId = 1;
+}
+
+message QueryGetRelayMiningDifficultyResponse {
+  RelayMiningDifficulty relayMiningDifficulty = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryAllRelayMiningDifficultyRequest {
+  cosmos.base.query.v1beta1.PageRequest pagination = 1;
+}
+
+message QueryAllRelayMiningDifficultyResponse {
+  repeated RelayMiningDifficulty                  relayMiningDifficulty = 1 [(gogoproto.nullable) = false];
+           cosmos.base.query.v1beta1.PageResponse pagination            = 2;
+}
+
+message QueryGetRelayMiningDifficultyAtHeightRequest {
+  string serviceId = 1;
+  int64 blockHeight = 2;
+}
+
+message QueryGetRelayMiningDifficultyAtHeightResponse {
+  RelayMiningDifficulty relayMiningDifficulty = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryRelayMiningDifficultyHistoryRequest {
+  string serviceId = 1;
+  cosmos.base.query.v1beta1.PageRequest pagination = 2;
+}
+
+message QueryRelayMiningDifficultyHistoryResponse {
+  repeated RelayMiningDifficultyUpdate relayMiningDifficultyHistory = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}

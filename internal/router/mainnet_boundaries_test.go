@@ -38,6 +38,7 @@ func TestDecoderForAllMainnetBoundaries(t *testing.T) {
 		{"v0.1.28", 287932, "v0_1_28"},
 		{"v0.1.29", 382250, "v0_1_29"},
 		{"v0.1.30", 484473, "v0_1_30"}, {"v0.1.31", 635506, "v0_1_30"}, {"v0.1.33", 703870, "v0_1_30"},
+		{"v0.1.34", 788945, "v0_1_34"},
 	}
 	for i, e := range eras {
 		dec, err := r.DecoderFor(e.height)

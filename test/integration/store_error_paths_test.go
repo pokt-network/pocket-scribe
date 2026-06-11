@@ -333,9 +333,10 @@ func TestMigrate_UnknownCommand(t *testing.T) {
 // "down" branch in migrate.go which is never reached by the shared harness
 // (that only calls "up").
 //
-// The last migration (0040_supplier_service_config_update.sql) has a proper
-// -- +goose Down section (DROP TABLE IF EXISTS supplier_service_config_update_history),
-// so Migrate("down") should succeed.
+// The assertions track goose's own version bookkeeping instead of naming the
+// table the newest migration drops, so the test survives every future
+// migration (it broke once when 0041 landed and the hardcoded 0040 table
+// assertion went stale).
 func TestMigrateDownOneStep(t *testing.T) {
 	ctx := context.Background()
 
@@ -350,45 +351,38 @@ func TestMigrateDownOneStep(t *testing.T) {
 	})
 
 	dsn := dedicated.DSN
+	gooseVersion := func() int64 {
+		var v int64
+		if err := dedicated.Pool.QueryRow(ctx,
+			`SELECT COALESCE(MAX(version_id), 0) FROM goose_db_version WHERE is_applied`).Scan(&v); err != nil {
+			t.Fatalf("read goose version: %v", err)
+		}
+		return v
+	}
 
 	// Migrate up is already done by StartPostgres; confirm status succeeds.
 	if err := store.Migrate(ctx, dsn, "status"); err != nil {
 		t.Fatalf("Migrate(status) after up: %v", err)
 	}
+	top := gooseVersion()
+	if top == 0 {
+		t.Fatal("no applied migrations on a freshly migrated container")
+	}
 
-	// Migrate down one step — rolls back migration 0040 which has a valid Down section.
+	// Migrate down one step — the newest migration must have a valid Down section.
 	if err := store.Migrate(ctx, dsn, "down"); err != nil {
-		t.Fatalf("Migrate(down): %v — check that migration 0040 has a valid -- +goose Down section", err)
+		t.Fatalf("Migrate(down): %v — check that the newest migration has a valid -- +goose Down section", err)
+	}
+	if got := gooseVersion(); got >= top {
+		t.Fatalf("goose version after down = %d, want < %d (down did not roll back)", got, top)
 	}
 
-	// Confirm the table dropped by migration 0040 is gone.
-	var tableExists bool
-	if err := dedicated.Pool.QueryRow(ctx,
-		`SELECT EXISTS (
-			SELECT 1 FROM information_schema.tables
-			WHERE table_schema = 'public' AND table_name = 'supplier_service_config_update_history'
-		)`).Scan(&tableExists); err != nil {
-		t.Fatalf("check table existence: %v", err)
-	}
-	if tableExists {
-		t.Fatal("supplier_service_config_update_history still exists after down migration; down did not execute")
-	}
-
-	// Migrate up again — round-trip: table reappears, no error.
+	// Migrate up again — round-trip back to the top, no error.
 	if err := store.Migrate(ctx, dsn, "up"); err != nil {
 		t.Fatalf("Migrate(up) after down: %v", err)
 	}
-
-	// Confirm the table is back.
-	if err := dedicated.Pool.QueryRow(ctx,
-		`SELECT EXISTS (
-			SELECT 1 FROM information_schema.tables
-			WHERE table_schema = 'public' AND table_name = 'supplier_service_config_update_history'
-		)`).Scan(&tableExists); err != nil {
-		t.Fatalf("check table existence after re-up: %v", err)
-	}
-	if !tableExists {
-		t.Fatal("supplier_service_config_update_history missing after re-up migration; round-trip failed")
+	if got := gooseVersion(); got != top {
+		t.Fatalf("goose version after re-up = %d, want %d (round-trip failed)", got, top)
 	}
 }
 

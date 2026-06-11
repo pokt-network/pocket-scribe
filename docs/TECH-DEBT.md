@@ -9,8 +9,6 @@
 | Item | Promised in | Target | Notes |
 |---|---|---|---|
 | `ps indexer` (all consumers in one process) | spec §12 CLI surface | Slice 2 | Only doc.go stub exists (`internal/app/indexer/`). |
-| `ps inspect streams` / `ps inspect cursors` | spec §12 | Slice 2 | Only doc.go stub (`internal/app/inspect/`). |
-| `ps doctor` (DB/NATS/node healthcheck) | spec §12 | Slice 2 | No package at all. |
 | Gap escalation timers (`PS_GAP_WARN_AFTER` 5m / `PS_GAP_ERROR_AFTER` 30m) | spec §6 | Slice 2 or 4 | Deferred Phase B → "Phase G", never picked up; today only immediate WARN + `GapsTotal` metric (`runtime.go`, `batch.go`). |
 | `ps fileplugin` live tail mode | spec §12 ("Phase 2 polish") | Phase 2 | Only `--bootstrap` implemented (`internal/app/fileplugin/cmd.go`). |
 | Block consumer on BatchRuntime | residue of spec §14 item 5 | Slice 2 | ADR-024 valves shipped for supplier; block consumer still single-msg `Runtime`. |

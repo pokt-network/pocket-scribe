@@ -9,6 +9,7 @@ import (
 	v0_1_28 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_28"
 	v0_1_29 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_29"
 	v0_1_30 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_30"
+	v0_1_34 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_34"
 	v0_1_8 "github.com/pokt-network/pocketscribe/internal/decoders/v0_1_8"
 )
 
@@ -24,5 +25,6 @@ func DefaultRegistry() map[string]decoders.Decoder {
 		"v0_1_28": v0_1_28.Decoder{},
 		"v0_1_29": v0_1_29.Decoder{},
 		"v0_1_30": v0_1_30.Decoder{},
+		"v0_1_34": v0_1_34.Decoder{},
 	}
 }
