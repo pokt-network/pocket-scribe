@@ -327,6 +327,91 @@ func TestMigrate_UnknownCommand(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FlushOnly — phase G: commits handler writes WITHOUT touching cursor tables.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// insertTestBlock inserts a block row at the given height inside tx.
+// It is a local helper for FlushOnly tests only.
+func insertTestBlock(ctx context.Context, tx pgx.Tx, _ *store.Store, height int64) error {
+	hdr := &types.BlockHeader{
+		Height: height,
+		Time:   time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	return store.InsertBlock(ctx, tx, hdr)
+}
+
+// TestFlushOnlyNoCursorAdvance verifies that FlushOnly:
+//  1. commits the handler's writes (block row is present after call).
+//  2. does NOT advance consumer_consolidation (ConsolidatedUpTo remains 0).
+//  3. does NOT write a processed_heights row (HasProcessed returns false).
+//  4. rolls back on write-callback error (block at height 999992 absent).
+func TestFlushOnlyNoCursorAdvance(t *testing.T) {
+	pg.Reset(t)
+	ctx := context.Background()
+	s := storeFrom(t)
+
+	// Register a consumer so ConsolidatedUpTo is queryable.
+	if err := s.RegisterConsumer(ctx, "flushonly-test", "v0.1.0"); err != nil {
+		t.Fatalf("register consumer: %v", err)
+	}
+
+	// Happy path: FlushOnly inserts a block row at height 999991.
+	if err := s.FlushOnly(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		return insertTestBlock(ctx, tx, s, 999991)
+	}); err != nil {
+		t.Fatalf("FlushOnly: %v", err)
+	}
+
+	// Assert: block row is present.
+	var blockCount int
+	if err := s.Pool().QueryRow(ctx,
+		`SELECT count(*) FROM block WHERE height=999991`).Scan(&blockCount); err != nil {
+		t.Fatalf("query block: %v", err)
+	}
+	if blockCount != 1 {
+		t.Fatalf("expected block row at height 999991, count=%d", blockCount)
+	}
+
+	// Assert: cursor NOT advanced.
+	cur, err := s.ConsolidatedUpTo(ctx, "flushonly-test")
+	if err != nil {
+		t.Fatalf("ConsolidatedUpTo: %v", err)
+	}
+	if cur != 0 {
+		t.Fatalf("ConsolidatedUpTo = %d, want 0 (FlushOnly must not advance cursor)", cur)
+	}
+
+	// Assert: no processed_heights row.
+	ok, err := s.HasProcessed(ctx, "flushonly-test", 999991)
+	if err != nil {
+		t.Fatalf("HasProcessed: %v", err)
+	}
+	if ok {
+		t.Fatal("HasProcessed = true; FlushOnly must not write processed_heights")
+	}
+
+	// Error path: FlushOnly with a write callback that fails must roll back.
+	if err := s.FlushOnly(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if insErr := insertTestBlock(ctx, tx, s, 999992); insErr != nil {
+			return insErr
+		}
+		return fmt.Errorf("boom")
+	}); err == nil {
+		t.Fatal("expected FlushOnly to return error when write callback fails")
+	}
+
+	// Assert: height 999992 not committed (rollback).
+	var count992 int
+	if err := s.Pool().QueryRow(ctx,
+		`SELECT count(*) FROM block WHERE height=999992`).Scan(&count992); err != nil {
+		t.Fatalf("query block 999992: %v", err)
+	}
+	if count992 != 0 {
+		t.Fatalf("height 999992 should not be committed after FlushOnly error, count=%d", count992)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ProcessHeight — write callback error path
 // ─────────────────────────────────────────────────────────────────────────────
 

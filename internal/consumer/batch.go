@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -170,7 +171,11 @@ func (r *BatchRuntime) handle(ctx context.Context, msg jetstream.Msg) error {
 			return nil
 		}
 		b.seen[msgID] = true
-		b.msgs = append(b.msgs, Message{Height: height, Subject: subject, MsgID: msgID, Data: msg.Data()})
+		var btn int64
+		if v := msg.Headers().Get(natsx.HeaderBlockTime); v != "" {
+			btn, _ = strconv.ParseInt(v, 10, 64) // malformed → 0 → valves skip (WARN)
+		}
+		b.msgs = append(b.msgs, Message{Height: height, Subject: subject, MsgID: msgID, TimeUnixNano: btn, Data: msg.Data()})
 		b.acks = append(b.acks, msg)
 		r.metrics.Buffered.WithLabelValues(id).Set(float64(len(b.msgs)))
 		return nil

@@ -277,6 +277,61 @@ func TestBatchRuntimeHandle_EnvelopeParseError(t *testing.T) {
 // BatchRuntime.handle — fan-out with Nats-Msg-Id header path
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BatchRuntime.handle — Pocket-Block-Time header capture (Phase G)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestBatchRuntimeHandle_TimeUnixNanoCapture verifies that handle populates
+// Message.TimeUnixNano from the Pocket-Block-Time header when present, and
+// leaves it 0 when absent (pre-Phase-G streams).
+func TestBatchRuntimeHandle_TimeUnixNanoCapture(t *testing.T) {
+	rt := &BatchRuntime{
+		handler: &noopBatchHandlerUnit{id: "probe-time"},
+		logger:  discardLogger(),
+		metrics: newTestMetrics(),
+		buf:     make(map[int64]*heightBuf),
+	}
+
+	// With Pocket-Block-Time header: TimeUnixNano must be captured.
+	hdrWith := nats.Header{}
+	hdrWith.Set(natsx.HeaderBlockTime, "1700000000000000000")
+	hdrWith.Set("Nats-Msg-Id", "msg-with-time")
+
+	msgWith := fakeMsg{
+		subject: natsx.TxSubject(7, 0),
+		data:    []byte{0x01},
+		headers: hdrWith,
+	}
+	if err := rt.handle(context.Background(), msgWith); err != nil {
+		t.Fatalf("handle (with header): %v", err)
+	}
+	if buf := rt.buf[7]; buf == nil || len(buf.msgs) != 1 {
+		t.Fatalf("expected 1 buffered msg at height 7, got %v", rt.buf[7])
+	}
+	if got := rt.buf[7].msgs[0].TimeUnixNano; got != 1700000000000000000 {
+		t.Fatalf("TimeUnixNano = %d, want 1700000000000000000", got)
+	}
+
+	// Without Pocket-Block-Time header: TimeUnixNano must be 0.
+	hdrWithout := nats.Header{}
+	hdrWithout.Set("Nats-Msg-Id", "msg-no-time")
+
+	msgWithout := fakeMsg{
+		subject: natsx.TxSubject(8, 0),
+		data:    []byte{0x02},
+		headers: hdrWithout,
+	}
+	if err := rt.handle(context.Background(), msgWithout); err != nil {
+		t.Fatalf("handle (without header): %v", err)
+	}
+	if buf := rt.buf[8]; buf == nil || len(buf.msgs) != 1 {
+		t.Fatalf("expected 1 buffered msg at height 8, got %v", rt.buf[8])
+	}
+	if got := rt.buf[8].msgs[0].TimeUnixNano; got != 0 {
+		t.Fatalf("TimeUnixNano = %d, want 0 (absent header)", got)
+	}
+}
+
 // TestBatchRuntimeHandle_FanOutWithHeader verifies the Nats-Msg-Id header branch:
 // when the header is set, msgID takes its value (batch.go:152-153).
 // Also covers the dedup (seen-map) redelivery path (batch.go:155-163)
