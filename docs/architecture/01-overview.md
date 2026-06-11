@@ -43,7 +43,8 @@ It is explicitly **not**:
             │  NATS JetStream cluster (3 replicas, file mode)  │
             │                                                  │
             │  Stream: POKT_CHAIN                              │
-            │  Subjects: pokt.block.{height}                   │
+            │  Subjects: pokt.block.{height}   (envelope/fence)│
+            │            pokt.tx.{height}.{idx}                │
             │            pokt.kv.{store}.{height}              │
             │            pokt.events.{type}.{height}           │
             │  Retention: 30 days                              │

@@ -97,13 +97,16 @@ Stream: POKT_CHAIN
   MaxConsumers: -1
 ```
 
-Subjects (hierarchical, supports filtering):
+Subjects (hierarchical, supports filtering) — per ADR-022:
 
-- `pokt.block.{height}` — the full block payload (used by consumers that need everything)
-- `pokt.kv.{store}.{height}` — per-store KV writes (most consumers subscribe here)
-- `pokt.events.{event_type}.{height}` — fan-out by event type for easy filtering
+- `pokt.block.{height}` — block envelope (`pocketscribe.v1.BlockEnvelope`): header metadata, hash, tx_count, event_count, kv_count, published_msg_count. **This is NOT the full block payload.** It is published **last** for each height, after all fan-out messages, serving as the per-height completeness fence for consumer batching (ADR-024).
+- `pokt.tx.{height}.{idx}` — one tx with its result section (`TxWithResult`)
+- `pokt.events.{eventType}.{height}` — one ABCI event (`EventInBlock`); the event-type token replaces `.` with `_` because `.` is the NATS token separator
+- `pokt.kv.{store}.{height}` — one `StoreKVPair`
 
-The sidecar publishes to **all three** for each block — JetStream dedupes per-subject via Msg-Id, so storage is bounded.
+**Ordering contract** (ADR-022 amendment, Phase E): for every height H, ALL fan-out messages (`pokt.tx.*`, `pokt.events.*`, `pokt.kv.*`) are published BEFORE `pokt.block.{H}`. JetStream delivers a durable's messages in stream sequence, so a consumer that receives the envelope for H has already received every matching fan-out message for H. This ordering is enforced in `internal/fileplugin` and verified by the integration test.
+
+Each message carries a `Pocket-Block-Time` header (unix nanoseconds from the consensus header). Consumers use this for `types.Position` when performing partial flushes before the envelope arrives (invariant 1 — never use indexer wall-clock for chain-data rows).
 
 Optional partition fan-out by entity hash (for horizontal scaling, see `07-ha-scaling.md`):
 
@@ -116,17 +119,29 @@ We start without partitioning — append-only commutativity lets us use queue gr
 
 ## Consumer pattern
 
-Each consumer (`ps consumer <module>`, e.g. `ps consumer supplier`):
+Each consumer (`ps consumer <module>`, e.g. `ps consumer supplier`) runs the generic `BatchRuntime` from `internal/consumer` (ADR-024):
 
 1. Connects to NATS, subscribes to a durable consumer on filtered subjects.
-2. For each message:
-   - `BEGIN` Postgres tx.
-   - Decode the payload using the appropriate decoder version (looked up via `internal/router` based on the block height).
-   - For each affected entity: upsert into `*_history` and the relevant event hypertables.
-   - Insert `processed_heights (consumer_name, block_height)` in the same tx.
-   - `COMMIT`.
-   - `Ack` the NATS message.
-3. On crash: NATS redelivers unacked messages; idempotent upserts make this a no-op.
+2. For each arriving message, the `BatchRuntime` buffers it in an in-memory `heightBuf` keyed by `block_height`. Three flush triggers:
+   - **Trigger 1 — block fence (primary)**: when `pokt.block.{H}` arrives, flush all buffered messages for H in one Postgres tx, advance `consumer_consolidation.consolidated_up_to`, ack ALL buffered NATS messages.
+   - **Trigger 2 — size cap (safety)**: if buffered rows ≥ 5000, partial flush via `store.FlushOnly` (BEGIN → write → COMMIT; NO cursor advance, messages stay unacked). Indicates unusually large block.
+   - **Trigger 3 — time cap (liveness)**: if oldest buffered message exceeds 5 s without an envelope, partial flush under the same rules. Indicates sidecar stall.
+3. Partial flush write pattern: passes `env == nil` to `BatchHandler.FlushHeight`; handlers derive `types.Position` from `Message.TimeUnixNano` (the `Pocket-Block-Time` NATS header, ADR-022 amendment) — chain-data rows always carry block-consensus time (Invariant 1).
+4. Orphaned buffer eviction: a `heightBuf` whose envelope has not arrived within 50 s (10 × MaxAge) is dropped from memory without acking. NATS redelivers; the runtime tracks the seen-count at eviction time and refuses to seal a rebuilt buffer until it reaches the recorded count — a late envelope can never close a hole regardless of redelivery interleaving.
+5. On crash: NATS redelivers unacked messages. Idempotent upserts (`ON CONFLICT DO NOTHING`) make replay a no-op. The consumer re-subscribes from the last-acked stream sequence and reconstructs its buffer exactly as on first delivery.
+
+Full ack discipline (Invariant 5 — ack after commit):
+
+```
+1. BEGIN tx
+2. CopyFrom rows (pgx bulk insert)
+3. UPDATE consumer_consolidation SET consolidated_up_to = H  (same tx)
+4. COMMIT
+5. Ack each buffered NATS message
+6. Clear in-memory buffer for H
+```
+
+References: [ADR-022](../decisions/ADR-022-nats-payload-discipline.md) (payload discipline + ordering contract), [ADR-024](../decisions/ADR-024-consumer-batching.md) (batching triggers), [ADR-025](../decisions/ADR-025-indexer-coordination.md) (indexed-height coordination).
 
 JetStream consumer config:
 

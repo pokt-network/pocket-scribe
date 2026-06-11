@@ -6,9 +6,9 @@ Workflows for common tasks. Each one has a Claude Code slash command in `.claude
 
 1. Run `/scaffold-consumer <module_name>` (e.g. `supplier`, `gateway`, `application`).
 2. The command generates:
-   - `internal/consumers/<module>/consumer.go` — main loop, NATS subscribe, batch handler
-   - `internal/consumers/<module>/handler.go` — per-event processing
-   - `internal/consumers/<module>/handler_test.go` — unit test skeleton
+   - `internal/consumer/<module>/consumer.go` — main loop, NATS subscribe, batch handler
+   - `internal/consumer/<module>/handler.go` — per-event processing
+   - `internal/consumer/<module>/handler_test.go` — unit test skeleton
    - SQL migration in `schema/migrations/` for the entity's history table
    - Test golden file directory in `test/golden/`
 3. Fill in the entity schema (must respect [invariants](./CLAUDE.md)):
@@ -45,8 +45,8 @@ Workflows for common tasks. Each one has a Claude Code slash command in `.claude
    - Document the breaking change in `docs/decisions/` as an ADR
    - Update affected canonical types in `internal/types/`
    - Add a test in cross-version test suite
-4. Update `internal/router/upgrades.go` with the new upgrade height (query `x/upgrade applied-plan` from a mainnet node).
-5. Add this version to the CI matrix in `.github/workflows/proto-matrix.yml`.
+4. Upgrade heights come from the chain via `ps sync-upgrades` (ADR-018); the router reads the `upgrades` table — never hardcode heights in Go code.
+5. Add this version to the CI matrix in `.github/workflows/ci.yml`.
 
 ## Modify an existing entity schema
 
@@ -71,10 +71,11 @@ If you really need to "remove" a field: stop populating it for new rows, leave e
 
 ```bash
 make test              # unit tests only (fast, no containers)
-make test-component    # spins testcontainers for NATS + Postgres
-make test-golden       # contract tests against versioned golden files
-make test-integration  # full stack, no real poktroll node
-make test-e2e          # spins a local poktroll node, slowest
+make test-race         # unit tests under the race detector
+make test-integration  # container-backed integration tests (needs Docker)
+make ci                # vet + fmt-check + lint + lint-integration + test-race
+make ci-full           # ci + integration tests + coverage gate (100%/90%)
+make coverage          # combined unit+integration coverage with per-package gate
 ```
 
 ## Commit conventions

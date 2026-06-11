@@ -8,39 +8,41 @@ Output: this repository, fully documented design + skeleton.
 
 Exit: human reviews and approves direction.
 
-## Phase 1 — Spike (target: 2-3 weeks)
+## Phase 1 — Spike (in progress — Slice 1 done 2026-06-11)
 
 **Goal**: prove the architecture end-to-end with one consumer, one aggregate, and a **complete docs+API demo** (Hasura + PostgREST + realtime).
 
-This is bigger than a typical spike because we want to **demonstrate the docs-from-DB pattern** from day one — proving that adding a new entity means **automatically getting GraphQL + REST + OpenAPI + real-time** without writing API code. That value proposition is what justifies the whole rewrite.
+Phase 1 is executed as four vertical slices, each independently demoable. See the [Slice 1 spec](./docs/superpowers/specs/2026-06-08-slice-1-design.md) §2 for the full decomposition. **Slice 1 shipped 2026-06-11.** Slices 2–4 are pending.
 
 ### Scope
 
 **Ingestion**:
-- [ ] poktroll archive node locally (testnet or mainnet) with FilePlugin enabled
-- [ ] `ps fileplugin` (sidecar subcommand): 300-LoC publisher that tails FilePlugin output dir, publishes to NATS with `Nats-Msg-Id`
-- [ ] NATS JetStream 1-node (local dev) with the POKT_CHAIN stream
+- [x] poktroll archive node locally (testnet or mainnet) with FilePlugin enabled
+- [x] `ps fileplugin` (sidecar subcommand): publisher that tails FilePlugin output dir, fans out per-tx/event/KV to NATS with `Nats-Msg-Id` and `Pocket-Block-Time` header (ADR-022)
+- [x] NATS JetStream 1-node (local dev) with the POKT_CHAIN stream
 
 **Storage**:
-- [ ] PostgreSQL 18 + TimescaleDB extension locally (latest stable)
-- [ ] First migration with `block`, `consumer_consolidation`, `processed_heights`, `supplier_history`, `event_claim_settled` (hypertable), `aggregate_registry`, `bucket_seal`
-- [ ] **Comprehensive `COMMENT ON`** for every table + column (this feeds Hasura + PostgREST auto-docs)
+- [x] PostgreSQL 18 + TimescaleDB extension locally (latest stable)
+- [x] Migrations with `block`, `consumer_consolidation`, `consumer_registry`, `processed_heights`, `supplier_history`, `supplier_service_config_update_history`, `aggregate_registry`, `bucket_seal`, `upgrades`
+- [ ] **Comprehensive `COMMENT ON`** for every table + column (Slice 3)
 
 **Processing**:
-- [ ] `ps consumer supplier`: one consumer module (full happy path)
-- [ ] One aggregate: `rewards_hourly`, with sealing loop
-- [ ] `ps reconciler`: basic drift detection vs chain (even if minimal)
+- [x] `ps consumer block` and `ps consumer supplier`: consumers across 31 protocol versions with multi-version decoder library
+- [x] `ps reconciler`: upgrades-table refresh (minimal — entity drift detection is Slice 4)
+- [x] `ps sync-upgrades`: populates `upgrades` table from mainnet LCD
+- [ ] One aggregate: `rewards_hourly`, with sealing loop (Slice 2)
 
-**Downstream APIs** (NEW: part of Phase 1):
-- [ ] **Hasura** deployed via Tilt, auto-pointed at our Postgres, exposing `supplier`/`supplier_history`/`rewards_hourly` GraphQL with auto-generated docs from `COMMENT ON`
-- [ ] **PostgREST** deployed via Tilt, exposing the same data as REST + auto-generated OpenAPI
-- [ ] **NATS WebSocket bridge** (small Go service in `cmd/ps` → `ps ws-bridge` or separate small repo): minimal implementation streaming `pokt.events.>` to WebSocket clients
-- [ ] **Docs landing page** (static or generated): shows the 3 access methods with sample queries
+**Downstream APIs** (Slices 3–4):
+- [ ] **Hasura** deployed via Tilt — Slice 3
+- [ ] **PostgREST** deployed via Tilt — Slice 3
+- [ ] **NATS WebSocket bridge** (`ps ws-bridge`) — Slice 4
+- [ ] **Docs landing page** — Slice 3
 
 **Quality**:
-- [ ] One E2E test: poktroll → sidecar → NATS → consumer → Postgres → aggregate sealed → GraphQL query returns result
-- [ ] Golden test for the supplier decoder
-- [ ] Reconciler test (drift inject + auto-heal)
+- [x] 27 spec test scenarios (§11.1) green; golden tests for block + supplier decoder across real fixture heights
+- [x] `make ci-full` clean: 100% decoders / ≥90% internal/ coverage gate; `.github/workflows/ci.yml`
+- [ ] Full E2E test with live node + aggregate seal + GraphQL query (Slice 4)
+- [ ] Reconciler entity drift inject + auto-heal test (Slice 4)
 
 ### Exit criteria
 

@@ -6,11 +6,11 @@ A Go-native indexer for Pocket Network's Shannon protocol. Stream-first ingestio
 
 ## Status
 
-**🚧 Pre-spike — schema foundation complete.** The full chain data model (244 tables covering poktroll + cosmos-sdk core) is generated and validated end-to-end. No Go runtime code yet — the first spike (see [ROADMAP.md](./ROADMAP.md)) wires consumers + decoders on top of this foundation.
+**Slice 1 complete (2026-06-11).** `cmd/ps` ships with `fileplugin`, `consumer block`, `consumer supplier`, `sync-upgrades`, and `reconciler` subcommands. The multi-version decoder library covers all 31 mainnet-applied protocol versions, the `BatchRuntime` orchestration framework (ADR-024 triggers 1–3) is in place, 27 spec test scenarios are green, and `make ci-full` passes the 100%/90% coverage gate. See [the Slice 1 spec](./docs/superpowers/specs/2026-06-08-slice-1-design.md) for the full scope and exit criteria.
 
 **Visual overview**: [`docs/architecture/00-system-flow.md`](./docs/architecture/00-system-flow.md) — 4 mermaid diagrams covering live ingestion, schema generation pipeline, decoder routing, and archeology substrate.
 
-What exists today: skills + schema + archeology. See [STATUS.md](./STATUS.md) for the precise breakdown.
+What exists today: production Go runtime + skills + schema + archeology. See [STATUS.md](./STATUS.md) for the precise breakdown.
 
 ## Why another indexer
 
@@ -126,8 +126,9 @@ After `tilt up` shows all resources green:
 ### CI checks locally
 
 ```bash
-make ci         # vet + fmt-check + lint + test
-make ci-race    # same, with the race detector
+make ci         # vet + fmt-check + lint + lint-integration + test-race (fast, no containers)
+make ci-full    # ci + integration tests + coverage gate (100% decoders / ≥90% internal/)
+make coverage   # combined unit+integration coverage with per-package gate
 make fmt        # apply gofmt to the tree
 ```
 
@@ -150,7 +151,7 @@ tilt up
 ## Documentation
 
 - [`CLAUDE.md`](./CLAUDE.md) — operating rules for Claude Code working on this repo (also valuable for humans)
-- [`docs/architecture/`](./docs/architecture/) — full system design (10 documents)
+- [`docs/architecture/`](./docs/architecture/) — full system design (12 documents)
 - [`docs/decisions/`](./docs/decisions/) — ADRs for every major call
 - [`docs/operations/`](./docs/operations/) — deployment, monitoring, runbooks
 - [`docs/research/`](./docs/research/) — focused technical research
