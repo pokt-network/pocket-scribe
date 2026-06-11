@@ -179,9 +179,7 @@ func TestFetchAppliedPlans(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	// Register handlers — copy entry to local var to avoid closure capture of loop variable.
 	for name, entry := range fixture {
-		name, entry := name, entry // pin
 		mux.HandleFunc("/cosmos/upgrade/v1beta1/applied_plan/"+name, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]string{"height": entry.AppliedPlan.Height})

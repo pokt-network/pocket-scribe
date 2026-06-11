@@ -14,8 +14,8 @@ Last updated: 2026-06-11 (Slice 1 done — phases A–G, exit criterion §15 met
 - ✅ **`internal/fileplugin`** — sidecar: reads FilePlugin output, fans out per-tx/event/KV to NATS (ADR-022), stamps `Pocket-Block-Time` header, publishes `pokt.block.{H}` envelope last as the per-height completeness fence
 - ✅ **`internal/consumer`** — generic `BatchRuntime`: buffers messages per height, flushes in one Postgres tx on the fence, ADR-024 triggers 1–3 (fence / size-5000 / time-5s valves), partial-flush via `store.FlushOnly` (no cursor advance), orphan eviction with seen-count protocol; ack-after-commit invariant intact
 - ✅ **`internal/consumer/block`** and **`internal/consumer/supplier`** — module consumers (full supplier lifecycle: `MsgStakeSupplier`, `MsgUnstakeSupplier`, 5 event types, Supplier/ServiceConfigUpdate KV across versions)
-- ✅ **`internal/decoders/`** — 8 versioned decoder packages covering all 31 mainnet-applied protocol versions (shape-range strategy: `v0_1_0`, `v0_1_8`, `v0_1_10`, `v0_1_20`, `v0_1_27`, `v0_1_28`, `v0_1_29`, `v0_1_30`)
-- ✅ **`internal/router`** — DB-driven height→decoder dispatch; `NewStaticRouter` for unit tests; `TestDecoderForAllMainnetBoundaries` pins all 31 boundaries
+- ✅ **`internal/decoders/`** — 9 versioned decoder packages covering all 32 mainnet-applied protocol versions (shape-range strategy: `v0_1_0`, `v0_1_8`, `v0_1_10`, `v0_1_20`, `v0_1_27`, `v0_1_28`, `v0_1_29`, `v0_1_30`, `v0_1_34`)
+- ✅ **`internal/router`** — DB-driven height→decoder dispatch; `NewStaticRouter` for unit tests; `TestDecoderForAllMainnetBoundaries` pins all 32 boundaries
 - ✅ **`internal/store`** — pgx v5 + sqlc; `ProcessHeight`, `FlushOnly`, cursor, AND-seal, `RequiredSet`, `IsSealed`, `FirstValidHeights`
 - ✅ **`internal/reconciler`** — upgrades-table refresh loop (immediate first sync, `pocketscribe_reconciler_syncs_total` / `sync_errors_total`, signal-aware shutdown)
 - ✅ **`ps sync-upgrades`** — populates `upgrades` table from mainnet LCD (golden-tested)
@@ -31,8 +31,8 @@ Last updated: 2026-06-11 (Slice 1 done — phases A–G, exit criterion §15 met
 ### Skills + tooling pipeline
 
 - ✅ **4 Claude Code skills** in `.claude/skills/`: `generate-decoder`, `generate-migration-from-diff`, `verify-migrations`, `add-decoder-version`
-- ✅ **40 schema migrations** in `schema/migrations/` — validated end-to-end via TimescaleDB+goose
-- ✅ **33 proto-shape snapshots** in `docs/research/.shapes/` — one per poktroll release v0.1.0 → v0.1.33
+- ✅ **41 schema migrations** in `schema/migrations/` — validated end-to-end via TimescaleDB+goose
+- ✅ **34 proto-shape snapshots** in `docs/research/.shapes/` — one per poktroll release v0.1.0 → v0.1.34
 - ✅ **Archeology run** in `archeology/` — 32 patched binaries (via Git LFS), scripts (with tip-mode orchestrator), 3 patches, and consolidated docs (README, FINDINGS, VERSIONS)
 
 ### Documentation
@@ -54,8 +54,7 @@ Last updated: 2026-06-11 (Slice 1 done — phases A–G, exit criterion §15 met
 - ❌ Continuous aggregates + bucket sealing loop (`ps sealing`) — Slice 2
 - ❌ Hasura + PostgREST deployment + `COMMENT ON` pass — Slice 3
 - ❌ NATS WebSocket bridge (`ps ws-bridge`) + full reconciler entity drift — Slice 4
-- ❌ `Tiltfile` fully wired — currently a stub (`fail("not yet implemented")`)
-- ❌ Deploy manifests — `deploy/{docker,k8s}` will be added in Phase 3
+- ❌ Production deploy manifests (helm/kustomize) — Phase 3; `deploy/dev/` + `Tiltfile` cover the local kind stack today (postgres, NATS, migrate, sync-upgrades, consumers, era-replay sidecar)
 
 ## Schema highlights (244 tables)
 
