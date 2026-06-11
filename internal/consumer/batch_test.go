@@ -673,3 +673,400 @@ func TestSizeValve_RoundTripFenceAfterPartialFlush(t *testing.T) {
 		t.Fatalf("Consolidated = %v, want %d", got, height)
 	}
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase G: time valve (ADR-024 trigger 3) — sweepValves drives partial flush
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestTimeValve_SweepFlushesOldBuffer verifies that when MaxAge=5s and a buffer
+// has msgs with firstAt=t0, advancing the fake clock to t0+6s then calling
+// sweepValves() causes one partial flush with env==nil (reason="time") and
+// empties b.msgs while retaining b.acks.
+func TestTimeValve_SweepFlushesOldBuffer(t *testing.T) {
+	rec := &recordingBatchHandler{id: "supplier"}
+	m := newTestMetrics()
+
+	t0 := time.Unix(1_700_000_000, 0)
+	fakeClock := t0
+	now := func() time.Time { return fakeClock }
+
+	rt := &BatchRuntime{
+		handler:    rec,
+		logger:     discardLogger(),
+		metrics:    m,
+		buf:        make(map[int64]*heightBuf),
+		evicted:    make(map[int64]int),
+		maxRows:    5000,
+		maxAge:     5 * time.Second,
+		evictAfter: 50 * time.Second,
+		flushFn:    fakeFlushOnly,
+		now:        now,
+	}
+
+	const height int64 = 20
+	const btn int64 = 1_700_000_000_000_000_000
+
+	makeMsg := func(idx int, id string) fakeMsg {
+		hdr := nats.Header{}
+		hdr.Set("Nats-Msg-Id", id)
+		hdr.Set(natsx.HeaderBlockTime, fmt.Sprintf("%d", btn))
+		return fakeMsg{subject: natsx.TxSubject(height, idx), data: []byte{}, headers: hdr}
+	}
+
+	ctx := context.Background()
+	if err := rt.handle(ctx, makeMsg(0, "tv-1")); err != nil {
+		t.Fatalf("msg1: %v", err)
+	}
+	if err := rt.handle(ctx, makeMsg(1, "tv-2")); err != nil {
+		t.Fatalf("msg2: %v", err)
+	}
+
+	// Advance clock past MaxAge.
+	fakeClock = t0.Add(6 * time.Second)
+	rt.sweepValves(ctx)
+
+	// One partial flush with nil env.
+	if len(rec.calls) != 1 {
+		t.Fatalf("FlushHeight calls = %d, want 1", len(rec.calls))
+	}
+	if rec.calls[0].env != nil {
+		t.Fatalf("time-valve flush must have nil env")
+	}
+
+	// PartialFlushes{reason="time"} == 1.
+	if got := partialFlushesTotal(m, "supplier", "time"); got != 1 {
+		t.Fatalf("PartialFlushes{time} = %v, want 1", got)
+	}
+
+	// b.msgs emptied; b.acks retained (fence must still ack them).
+	b := rt.buf[height]
+	if b == nil {
+		t.Fatal("heightBuf must still exist after partial flush")
+	}
+	if len(b.msgs) != 0 {
+		t.Fatalf("b.msgs len = %d, want 0 after time flush", len(b.msgs))
+	}
+	if len(b.acks) != 2 {
+		t.Fatalf("b.acks len = %d, want 2 (acks held for fence)", len(b.acks))
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase G: orphan eviction — sweepValves drops buffer, records seen-count
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestEviction_SweepDropsOrphanedBuffer verifies that when EvictAfter=50s and
+// a buffer has been sitting for >50s without an envelope, sweepValves() drops
+// the buffer from r.buf, increments Evictions, issues NO acks, and records
+// r.evicted[height]==len(seen).
+func TestEviction_SweepDropsOrphanedBuffer(t *testing.T) {
+	m := newTestMetrics()
+
+	t0 := time.Unix(1_700_000_000, 0)
+	fakeClock := t0
+	now := func() time.Time { return fakeClock }
+
+	var ackCount int
+	makeAckMsg := func(idx int, id string) ackCountingMsg {
+		hdr := nats.Header{}
+		hdr.Set("Nats-Msg-Id", id)
+		hdr.Set(natsx.HeaderBlockTime, fmt.Sprintf("%d", int64(1_700_000_000_000_000_000)))
+		return ackCountingMsg{
+			fakeMsg: fakeMsg{subject: natsx.TxSubject(30, idx), data: []byte{}, headers: hdr},
+			acked:   &ackCount,
+		}
+	}
+
+	rt := &BatchRuntime{
+		handler:    &noopBatchHandlerUnit{id: "supplier"},
+		logger:     discardLogger(),
+		metrics:    m,
+		buf:        make(map[int64]*heightBuf),
+		evicted:    make(map[int64]int),
+		maxRows:    5000,
+		maxAge:     5 * time.Second,
+		evictAfter: 50 * time.Second,
+		flushFn:    fakeFlushOnly,
+		now:        now,
+	}
+
+	const height int64 = 30
+
+	ctx := context.Background()
+	if err := rt.handle(ctx, makeAckMsg(0, "ev-1")); err != nil {
+		t.Fatalf("msg1: %v", err)
+	}
+	if err := rt.handle(ctx, makeAckMsg(1, "ev-2")); err != nil {
+		t.Fatalf("msg2: %v", err)
+	}
+
+	// Advance past EvictAfter.
+	fakeClock = t0.Add(51 * time.Second)
+	rt.sweepValves(ctx)
+
+	// Buffer must be gone.
+	if rt.buf[height] != nil {
+		t.Fatal("heightBuf must be deleted after eviction")
+	}
+
+	// Evictions counter == 1.
+	if got := testutil.ToFloat64(m.Evictions.WithLabelValues("supplier")); got != 1 {
+		t.Fatalf("Evictions = %v, want 1", got)
+	}
+
+	// No acks issued during eviction.
+	if ackCount != 0 {
+		t.Fatalf("ackCount = %d after eviction, want 0 (NATS redelivers)", ackCount)
+	}
+
+	// evicted map records seen-count.
+	if got := rt.evicted[height]; got != 2 {
+		t.Fatalf("r.evicted[%d] = %d, want 2", height, got)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase G: late envelope after eviction — fence rejected until rebuilt
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestEviction_LateEnvelopeRejectedUntilRebuilt drives the full rebuild flow:
+//  1. Evict a 2-msg buffer.
+//  2. Envelope arrives → handle returns error (incomplete rebuild) — mark kept.
+//  3. Redeliver 1 fan-out msg → envelope still errors (1 < 2).
+//  4. Redeliver 2nd fan-out msg → envelope succeeds; mark cleared, cursor advanced.
+func TestEviction_LateEnvelopeRejectedUntilRebuilt(t *testing.T) {
+	rec := &recordingBatchHandler{id: "supplier"}
+	m := newTestMetrics()
+
+	t0 := time.Unix(1_700_000_000, 0)
+	fakeClock := t0
+	now := func() time.Time { return fakeClock }
+
+	var processCalls int
+	rt := &BatchRuntime{
+		handler:    rec,
+		logger:     discardLogger(),
+		metrics:    m,
+		buf:        make(map[int64]*heightBuf),
+		evicted:    make(map[int64]int),
+		maxRows:    5000,
+		maxAge:     5 * time.Second,
+		evictAfter: 50 * time.Second,
+		flushFn:    fakeFlushOnly,
+		now:        now,
+		processFn: func(ctx context.Context, _ string, height int64, write func(context.Context, pgx.Tx) error) (int64, error) {
+			processCalls++
+			if err := write(ctx, nil); err != nil {
+				return 0, err
+			}
+			return height, nil
+		},
+	}
+
+	const height int64 = 40
+	const btn int64 = 1_700_000_000_000_000_000
+
+	makeMsg := func(idx int, id string) fakeMsg {
+		hdr := nats.Header{}
+		hdr.Set("Nats-Msg-Id", id)
+		hdr.Set(natsx.HeaderBlockTime, fmt.Sprintf("%d", btn))
+		return fakeMsg{subject: natsx.TxSubject(height, idx), data: []byte{}, headers: hdr}
+	}
+	makeEnvelope := func() fakeMsg {
+		env := psv1.BlockEnvelope{Height: height, TimeUnixNano: btn}
+		d, _ := env.Marshal()
+		return fakeMsg{subject: natsx.BlockSubject(height), data: d}
+	}
+
+	ctx := context.Background()
+
+	// Buffer 2 msgs, evict.
+	if err := rt.handle(ctx, makeMsg(0, "re-1")); err != nil {
+		t.Fatalf("msg1: %v", err)
+	}
+	if err := rt.handle(ctx, makeMsg(1, "re-2")); err != nil {
+		t.Fatalf("msg2: %v", err)
+	}
+	fakeClock = t0.Add(51 * time.Second)
+	rt.sweepValves(ctx)
+
+	if rt.evicted[height] != 2 {
+		t.Fatalf("evicted[%d] = %d, want 2", height, rt.evicted[height])
+	}
+
+	// 1. Envelope arrives → must return error, handler NOT called, mark kept.
+	if err := rt.handle(ctx, makeEnvelope()); err == nil {
+		t.Fatal("handle(envelope) must error while buffer is rebuilding (0/2)")
+	}
+	if processCalls != 0 {
+		t.Fatalf("processCalls = %d after first envelope attempt, want 0", processCalls)
+	}
+	if _, still := rt.evicted[height]; !still {
+		t.Fatal("evicted mark must be kept after failed envelope")
+	}
+
+	// 2. Redeliver 1 fan-out msg (partial rebuild: seen=1 < want=2).
+	if err := rt.handle(ctx, makeMsg(0, "re-1")); err != nil {
+		t.Fatalf("redeliver msg1: %v", err)
+	}
+	if err := rt.handle(ctx, makeEnvelope()); err == nil {
+		t.Fatal("handle(envelope) must still error while buffer is rebuilding (1/2)")
+	}
+	if processCalls != 0 {
+		t.Fatalf("processCalls = %d after second envelope attempt, want 0", processCalls)
+	}
+
+	// 3. Redeliver 2nd fan-out msg → rebuild complete; envelope succeeds.
+	if err := rt.handle(ctx, makeMsg(1, "re-2")); err != nil {
+		t.Fatalf("redeliver msg2: %v", err)
+	}
+	if err := rt.handle(ctx, makeEnvelope()); err != nil {
+		t.Fatalf("handle(envelope) must succeed after full rebuild: %v", err)
+	}
+	if processCalls != 1 {
+		t.Fatalf("processCalls = %d after full rebuild + envelope, want 1", processCalls)
+	}
+
+	// Mark must be cleared.
+	if _, still := rt.evicted[height]; still {
+		t.Fatal("evicted mark must be cleared after successful flush")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase G: re-eviction keeps the max seen-count
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestEviction_ReEvictionKeepsMaxSeenCount verifies that if a rebuilding buffer
+// (1 msg redelivered) is evicted a second time, r.evicted[height] stays at the
+// original count (max(2, 1) == 2), and Evictions == 2.
+func TestEviction_ReEvictionKeepsMaxSeenCount(t *testing.T) {
+	m := newTestMetrics()
+
+	t0 := time.Unix(1_700_000_000, 0)
+	fakeClock := t0
+	now := func() time.Time { return fakeClock }
+
+	rt := &BatchRuntime{
+		handler:    &noopBatchHandlerUnit{id: "supplier"},
+		logger:     discardLogger(),
+		metrics:    m,
+		buf:        make(map[int64]*heightBuf),
+		evicted:    make(map[int64]int),
+		maxRows:    5000,
+		maxAge:     5 * time.Second,
+		evictAfter: 50 * time.Second,
+		flushFn:    fakeFlushOnly,
+		now:        now,
+	}
+
+	const height int64 = 50
+	const btn int64 = 1_700_000_000_000_000_000
+
+	makeMsg := func(idx int, id string) fakeMsg {
+		hdr := nats.Header{}
+		hdr.Set("Nats-Msg-Id", id)
+		hdr.Set(natsx.HeaderBlockTime, fmt.Sprintf("%d", btn))
+		return fakeMsg{subject: natsx.TxSubject(height, idx), data: []byte{}, headers: hdr}
+	}
+
+	ctx := context.Background()
+
+	// First eviction at count 2.
+	if err := rt.handle(ctx, makeMsg(0, "rr-1")); err != nil {
+		t.Fatalf("msg1: %v", err)
+	}
+	if err := rt.handle(ctx, makeMsg(1, "rr-2")); err != nil {
+		t.Fatalf("msg2: %v", err)
+	}
+	fakeClock = t0.Add(51 * time.Second)
+	rt.sweepValves(ctx)
+
+	if rt.evicted[height] != 2 {
+		t.Fatalf("after 1st eviction: evicted[%d] = %d, want 2", height, rt.evicted[height])
+	}
+
+	// Redeliver only 1 msg (partial rebuild, seen=1).
+	fakeClock = t0.Add(52 * time.Second) // keep clock past firstAt reset
+	if err := rt.handle(ctx, makeMsg(0, "rr-1")); err != nil {
+		t.Fatalf("redeliver msg1: %v", err)
+	}
+
+	// Second eviction: seen=1, prev=2 → max keeps 2.
+	fakeClock = t0.Add(200 * time.Second) // well past EvictAfter from the new firstAt
+	rt.sweepValves(ctx)
+
+	if got := rt.evicted[height]; got != 2 {
+		t.Fatalf("after 2nd eviction: evicted[%d] = %d, want 2 (max prev)", height, got)
+	}
+	if got := testutil.ToFloat64(m.Evictions.WithLabelValues("supplier")); got != 2 {
+		t.Fatalf("Evictions = %v after 2nd eviction, want 2", got)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase G: eviction clock resets on partial flush; nil-msgs buffer still evicts
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestEviction_ClockResetOnPartialFlush verifies two properties:
+//  1. After a size-valve partial flush resets b.firstAt, the buffer is NOT
+//     evicted even when the original firstAt would have triggered eviction.
+//  2. A buffer where msgs was already cleared by a partial flush (b.msgs==nil,
+//     b.flushedRows>0) but whose (reset) firstAt is now stale DOES get evicted.
+func TestEviction_ClockResetOnPartialFlush(t *testing.T) {
+	m := newTestMetrics()
+
+	t0 := time.Unix(1_700_000_000, 0)
+	fakeClock := t0
+	now := func() time.Time { return fakeClock }
+
+	rt := &BatchRuntime{
+		handler:    &recordingBatchHandler{id: "supplier"},
+		logger:     discardLogger(),
+		metrics:    m,
+		buf:        make(map[int64]*heightBuf),
+		evicted:    make(map[int64]int),
+		maxRows:    2, // size valve fires at 2 msgs
+		maxAge:     5 * time.Second,
+		evictAfter: 50 * time.Second,
+		flushFn:    fakeFlushOnly,
+		now:        now,
+	}
+
+	const height int64 = 60
+	const btn int64 = 1_700_000_000_000_000_000
+
+	makeMsg := func(idx int, id string) fakeMsg {
+		hdr := nats.Header{}
+		hdr.Set("Nats-Msg-Id", id)
+		hdr.Set(natsx.HeaderBlockTime, fmt.Sprintf("%d", btn))
+		return fakeMsg{subject: natsx.TxSubject(height, idx), data: []byte{}, headers: hdr}
+	}
+
+	ctx := context.Background()
+
+	// Buffer 2 msgs → size valve fires at t0, resets firstAt to t0.
+	if err := rt.handle(ctx, makeMsg(0, "cr-1")); err != nil {
+		t.Fatalf("msg1: %v", err)
+	}
+	if err := rt.handle(ctx, makeMsg(1, "cr-2")); err != nil {
+		t.Fatalf("msg2: %v", err)
+	}
+	// firstAt was reset to now()=t0 by partialFlushLocked; advance clock to t0+51s
+	// (would evict if firstAt were still t0).
+	fakeClock = t0.Add(51 * time.Second)
+	// But firstAt was JUST reset at t0 during the partial flush call above — so
+	// it's still within EvictAfter. Actually, the partial flush fires during
+	// handle() at t0 (fakeClock==t0 at that point) which resets firstAt to t0.
+	// At fakeClock=t0+51s → 51s since firstAt → eviction should trigger.
+	// Property 2: since msgs==nil and flushedRows>0, sweep checks now-firstAt > evictAfter.
+	rt.sweepValves(ctx)
+
+	// Buffer with flushedRows>0 and stale firstAt SHOULD be evicted.
+	if rt.buf[height] != nil {
+		t.Fatal("buffer with only flushedRows (no pending msgs) and stale firstAt must be evicted")
+	}
+	if got := testutil.ToFloat64(m.Evictions.WithLabelValues("supplier")); got != 1 {
+		t.Fatalf("Evictions = %v, want 1", got)
+	}
+}

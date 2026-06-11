@@ -19,8 +19,8 @@ import (
 
 // BatchRuntime drives a fan-out consumer: buffer per height → flush on the
 // pokt.block.{H} envelope in ONE Postgres tx → ack everything after commit
-// (invariants 4+5; ADR-024 block-boundary fence; triggers 2-3 size/time valves done;
-// orphaned heightBuf eviction arrives in next commit).
+// (invariants 4+5; ADR-024 block-boundary fence; triggers 2-3 size/time valves
+// + orphaned heightBuf eviction implemented per ADR-024 amendment Phase G).
 type BatchRuntime struct {
 	handler        BatchHandler
 	store          *store.Store
@@ -29,10 +29,19 @@ type BatchRuntime struct {
 	metrics        *metrics.Consumer
 	genesisVersion string
 
-	mu  sync.Mutex // guards buf; the only other holder is the valve sweep goroutine (T5)
+	mu  sync.Mutex // guards buf and evicted; also held by the valve sweep goroutine
 	buf map[int64]*heightBuf
+	// evicted records the distinct Nats-Msg-Id count at the time a buffer was
+	// evicted (height → seen-count). The fence for an evicted height is Nak'd
+	// (returning an error) until the rebuilt buffer's seen-count reaches the
+	// recorded value — only then does the flush proceed and the mark clear.
+	// If a rebuilding buffer is evicted again, the count is max(previous, len(seen)).
+	// The map grows only with heights whose envelope NEVER arrives (chronic sidecar
+	// failure) and is cleared on restart (bounded-growth assumption; ADR-024
+	// amendment Phase G).
+	evicted map[int64]int
 
-	// Valve knobs (ADR-024 trigger 2-3). Populated by NewBatchRuntime from BatchConfig.
+	// Valve knobs (ADR-024 triggers 2-3). Populated by NewBatchRuntime from BatchConfig.
 	maxRows    int
 	maxAge     time.Duration
 	evictAfter time.Duration
@@ -106,6 +115,7 @@ func NewBatchRuntime(cfg BatchConfig) *BatchRuntime {
 		metrics:        cfg.Metrics,
 		genesisVersion: cfg.GenesisVersion,
 		buf:            make(map[int64]*heightBuf),
+		evicted:        make(map[int64]int),
 		maxRows:        cfg.MaxRows,
 		maxAge:         cfg.MaxAge,
 		evictAfter:     cfg.EvictAfter,
@@ -127,6 +137,26 @@ func (r *BatchRuntime) Run(ctx context.Context) error {
 	} else if d {
 		return nil
 	}
+	// Valve sweep goroutine: periodically triggers time-cap partial flushes and
+	// orphaned-buffer eviction (ADR-024 triggers 3 + eviction; Phase G).
+	// Tick interval is maxAge/2 capped at 1s so the sweep does not lag by a full
+	// age period. The goroutine exits when ctx is canceled.
+	go func() {
+		tick := r.maxAge / 2
+		if tick > time.Second {
+			tick = time.Second
+		}
+		t := time.NewTicker(tick)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				r.sweepValves(ctx)
+			}
+		}
+	}()
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -251,6 +281,20 @@ func (r *BatchRuntime) handle(ctx context.Context, msg jetstream.Msg) error {
 	if err := env.Unmarshal(msg.Data()); err != nil {
 		return fmt.Errorf("block envelope at height %d: %w", height, err)
 	}
+	// Eviction fence (ADR-024 amendment Phase G): if this height was previously
+	// evicted, reject the envelope until the rebuilt buffer's seen-count matches
+	// the recorded count. consume() Nak-eates the envelope on error; do NOT Nak
+	// here (consume acks on nil return — double-nak is not contract-safe).
+	if want, ok := r.evicted[height]; ok {
+		have := 0
+		if b := r.buf[height]; b != nil {
+			have = len(b.seen)
+		}
+		if have < want {
+			return fmt.Errorf("evicted height %d rebuilding: %d/%d messages redelivered", height, have, want)
+		}
+		delete(r.evicted, height) // rebuilt: proceed to normal full flush below
+	}
 	b := r.buf[height]
 	if b == nil {
 		b = &heightBuf{} // quiet height: empty flush still advances the cursor
@@ -316,4 +360,38 @@ func (r *BatchRuntime) updateBufferedLocked() {
 		total += len(b.msgs)
 	}
 	r.metrics.Buffered.WithLabelValues(r.handler.ID()).Set(float64(total))
+}
+
+// sweepValves scans all open height buffers and applies the time-cap and
+// eviction valves (ADR-024 triggers 3 + orphan eviction). Caller must NOT hold
+// r.mu; sweepValves acquires it for the full scan to keep the check and the
+// delete/flush atomic with respect to handle().
+func (r *BatchRuntime) sweepValves(ctx context.Context) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := r.now()
+	for h, b := range r.buf {
+		switch {
+		case now.Sub(b.firstAt) > r.evictAfter:
+			// Orphaned buffer: envelope never arrived within EvictAfter.
+			// Drop from memory WITHOUT acking — NATS redelivers on AckWait expiry.
+			// Record max(previous, len(seen)) so the fence cannot seal a hole.
+			delete(r.buf, h)
+			if len(b.seen) > r.evicted[h] {
+				r.evicted[h] = len(b.seen)
+			}
+			r.metrics.Evictions.WithLabelValues(r.handler.ID()).Inc()
+			r.updateBufferedLocked()
+			r.logger.Warn("evicted orphaned height buffer (no envelope)",
+				"consumer", r.handler.ID(),
+				"height", h,
+				"seen", len(b.seen),
+				"pending", len(b.msgs),
+				"flushed_rows", b.flushedRows,
+			)
+		case len(b.msgs) > 0 && now.Sub(b.firstAt) > r.maxAge:
+			// Time-cap: partial flush without cursor advance (ADR-024 trigger 3).
+			r.partialFlushLocked(ctx, h, b, "time")
+		}
+	}
 }
