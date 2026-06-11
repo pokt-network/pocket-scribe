@@ -1,7 +1,8 @@
 // Command covgate enforces per-package coverage thresholds from a merged cover
 // profile: 100% for internal/decoders/* (excluding gen/), 90% for everything
 // else under internal/. Packages with zero statements are skipped. Generated
-// trees ("/gen/") and internal/proto are excluded entirely.
+// trees ("/gen/"), internal/proto, and internal/app/* (composition roots,
+// integration-covered) are excluded entirely.
 package main
 
 import (
@@ -70,6 +71,13 @@ func parseProfile(r io.Reader) map[string]*agg {
 		// Exclude by exact path segment ("gen"), not substring — a package
 		// named e.g. "generic" must NOT be excluded.
 		if hasSegment(pkg, "gen") || pkg == "internal/proto" || !strings.HasPrefix(pkg, "internal/") {
+			continue
+		}
+		// internal/app/* are composition roots (thin cobra wiring over domain logic):
+		// their real coverage comes from integration/E2E layers (4-5), and unit-faking
+		// their store/NATS/LCD connections would be happy-path padding, which the
+		// project coverage policy forbids. Domain logic they call is gated normally.
+		if pkg == "internal/app" || strings.HasPrefix(pkg, "internal/app/") {
 			continue
 		}
 		a := pkgs[pkg]

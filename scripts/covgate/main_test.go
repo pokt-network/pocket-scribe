@@ -105,6 +105,31 @@ github.com/pokt-network/pocketscribe/cmd/ps/main.go:5.1,7.2 5 5
 	}
 }
 
+func TestParseProfile_ExcludesAppCompositionRoots(t *testing.T) {
+	// internal/app and internal/app/* are composition roots: excluded from the
+	// gate (integration-covered wiring). A sibling like internal/application
+	// must NOT be excluded (prefix is segment-exact, not substring).
+	profile := `mode: atomic
+github.com/pokt-network/pocketscribe/internal/app/root.go:5.1,7.2 4 0
+github.com/pokt-network/pocketscribe/internal/app/x/cmd.go:5.1,7.2 6 0
+github.com/pokt-network/pocketscribe/internal/application/thing.go:5.1,7.2 3 3
+`
+	pkgs := parseProfile(strings.NewReader(profile))
+	if _, ok := pkgs["internal/app"]; ok {
+		t.Error("internal/app should be excluded from the gate")
+	}
+	if _, ok := pkgs["internal/app/x"]; ok {
+		t.Error("internal/app/x should be excluded from the gate")
+	}
+	a := pkgs["internal/application"]
+	if a == nil || a.stmts != 3 {
+		t.Fatalf("internal/application must NOT be excluded (not under internal/app/): %+v", a)
+	}
+	if len(pkgs) != 1 {
+		t.Fatalf("want 1 package, got %d", len(pkgs))
+	}
+}
+
 func TestParseProfile_GenExclusionIsExactSegment(t *testing.T) {
 	// A package merely CONTAINING "gen" in a segment name must NOT be excluded;
 	// a malformed line without ':' must be skipped, not panic.

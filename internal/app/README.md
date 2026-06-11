@@ -20,3 +20,4 @@ Composition roots for every `ps` subcommand. Each sub-package owns its own Cobra
 ## Testing
 
 - Composition roots are thin by design; coverage comes from integration tests in `test/integration/` that bring up the full stack via testcontainers rather than testing wiring code directly.
+- **Coverage gate exclusion**: `internal/app/*` is excluded from the per-package coverage gate (`scripts/covgate`). These packages are thin cobra wiring over domain logic — their real coverage comes from integration/E2E layers (4-5), and unit-faking their store/NATS/LCD connections would be happy-path padding, which the project coverage policy forbids. The domain logic they call is gated normally. Unit tests that exist here (flag parsing, command tree shape) are kept as executable documentation even though the gate does not require them.
