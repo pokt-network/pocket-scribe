@@ -13,10 +13,11 @@ import (
 // the live decode pipeline. Adding a fixture triplet automatically enrolls it
 // — this is the "N versions × categories green" enforcement for Phase F.
 //
-// TODO(phase-f-pending): v0.1.30 / v0.1.31 / v0.1.33 have no archived
-// FilePlugin data yet (archeology still running on multi-1). When their
-// tarballs land in the bucket, run the curate-version-fixtures skill —
-// the new triplets enroll here automatically. See test/fixtures/README.md.
+// TODO(phase-f-pending): v0.1.31 / v0.1.33 have no archived FilePlugin data
+// yet (archeology still running on multi-1). When their tarballs land in the
+// bucket, run the curate-version-fixtures skill — the new triplets enroll here
+// automatically. See test/fixtures/README.md.
+// v0.1.30 curated 2026-06-11 (heights 484473, 490000, 533275).
 func TestGoldenWalkAllFixtures(t *testing.T) {
 	r := mustRouter(t)
 	pattern := "../../test/fixtures/v0_1_*/block-*-expected.json"
@@ -24,7 +25,7 @@ func TestGoldenWalkAllFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) < 13 {
+	if len(files) < 16 {
 		t.Fatalf("found only %d expected.json files (%s) — corpus missing?", len(files), pattern)
 	}
 	for _, ef := range files {
