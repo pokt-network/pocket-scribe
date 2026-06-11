@@ -47,6 +47,27 @@ func NewConsumer(reg prometheus.Registerer) *Consumer {
 	}
 }
 
+// Reconciler instruments the ps reconciler upgrade-refresh loop (ADR-018).
+type Reconciler struct {
+	Syncs      prometheus.Counter // successful upgrade syncs
+	SyncErrors prometheus.Counter // failed upgrade syncs (loop continues; router serves cached table)
+}
+
+// NewReconciler constructs and registers the reconciler metric set on reg.
+func NewReconciler(reg prometheus.Registerer) *Reconciler {
+	c := func(name, help string) prometheus.Counter {
+		v := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace, Subsystem: "reconciler", Name: name, Help: help,
+		})
+		reg.MustRegister(v)
+		return v
+	}
+	return &Reconciler{
+		Syncs:      c("syncs_total", "successful upgrade table refreshes"),
+		SyncErrors: c("sync_errors_total", "failed upgrade refreshes (cached table keeps serving)"),
+	}
+}
+
 // FilePlugin holds the metrics emitted by the fileplugin sidecar.
 type FilePlugin struct {
 	OversizeSoft    prometheus.Counter // payloads above the 256 KiB soft cap (still published)
