@@ -323,8 +323,31 @@ func TestIntraTxFaultRollsBackPartialWrites(t *testing.T) { // spec test 22c
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
-	// Give the rollback time to complete before asserting.
-	time.Sleep(200 * time.Millisecond)
+	// Poll until the rollback is observable (rows == 0) rather than sleeping a
+	// fixed duration. callCount is incremented BEFORE inner writes, so the poll
+	// above completes before the 92-row write finishes; under container load the
+	// rollback can take > 200 ms. If the second attempt (callCount >= 2) arrives
+	// first, the assert below will catch the unexpected row count.
+	rollbackDeadline := time.After(10 * time.Second)
+	for {
+		var n int
+		if err := pg.Pool.QueryRow(ctx,
+			`SELECT count(*) FROM msg_stake_supplier WHERE block_height=290584`,
+		).Scan(&n); err != nil {
+			t.Fatalf("poll msg_stake_supplier after fault: %v", err)
+		}
+		if n == 0 {
+			break // rollback complete
+		}
+		if faultH.callCount.Load() >= 2 {
+			t.Fatalf("redelivery (callCount>=2) arrived before rollback was observable; rows=%d", n)
+		}
+		select {
+		case <-rollbackDeadline:
+			t.Fatalf("rollback not observable within 10s; rows=%d", n)
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 
 	// Assert AFTER fault, BEFORE retry: rollback must have discarded all writes.
 	var supplierRowsAfterFault int
