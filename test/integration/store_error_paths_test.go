@@ -28,6 +28,7 @@ import (
 	psv1 "github.com/pokt-network/pocketscribe/internal/proto/gen/pocketscribe/v1"
 	"github.com/pokt-network/pocketscribe/internal/store"
 	"github.com/pokt-network/pocketscribe/internal/types"
+	tc "github.com/pokt-network/pocketscribe/test/testcontainers"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -323,6 +324,71 @@ func TestMigrate_StatusCommand(t *testing.T) {
 func TestMigrate_UnknownCommand(t *testing.T) {
 	if err := store.Migrate(context.Background(), pg.DSN, "rewind"); err == nil {
 		t.Fatal("expected error for unknown migrate command")
+	}
+}
+
+// TestMigrateDownOneStep verifies that Migrate("down") rolls back exactly one
+// migration on a DEDICATED container (never touches the shared pg harness) and
+// that a subsequent Migrate("up") round-trips cleanly. This exercises the
+// "down" branch in migrate.go which is never reached by the shared harness
+// (that only calls "up").
+//
+// The last migration (0040_supplier_service_config_update.sql) has a proper
+// -- +goose Down section (DROP TABLE IF EXISTS supplier_service_config_update_history),
+// so Migrate("down") should succeed.
+func TestMigrateDownOneStep(t *testing.T) {
+	ctx := context.Background()
+
+	// Spin up a DEDICATED postgres container — never touches the shared harness.
+	dedicated, err := tc.StartPostgres(ctx)
+	if err != nil {
+		t.Fatalf("start dedicated postgres: %v", err)
+	}
+	t.Cleanup(func() {
+		dedicated.Pool.Close()
+		_ = dedicated.Container.Terminate(ctx)
+	})
+
+	dsn := dedicated.DSN
+
+	// Migrate up is already done by StartPostgres; confirm status succeeds.
+	if err := store.Migrate(ctx, dsn, "status"); err != nil {
+		t.Fatalf("Migrate(status) after up: %v", err)
+	}
+
+	// Migrate down one step — rolls back migration 0040 which has a valid Down section.
+	if err := store.Migrate(ctx, dsn, "down"); err != nil {
+		t.Fatalf("Migrate(down): %v — check that migration 0040 has a valid -- +goose Down section", err)
+	}
+
+	// Confirm the table dropped by migration 0040 is gone.
+	var tableExists bool
+	if err := dedicated.Pool.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = 'public' AND table_name = 'supplier_service_config_update_history'
+		)`).Scan(&tableExists); err != nil {
+		t.Fatalf("check table existence: %v", err)
+	}
+	if tableExists {
+		t.Fatal("supplier_service_config_update_history still exists after down migration; down did not execute")
+	}
+
+	// Migrate up again — round-trip: table reappears, no error.
+	if err := store.Migrate(ctx, dsn, "up"); err != nil {
+		t.Fatalf("Migrate(up) after down: %v", err)
+	}
+
+	// Confirm the table is back.
+	if err := dedicated.Pool.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = 'public' AND table_name = 'supplier_service_config_update_history'
+		)`).Scan(&tableExists); err != nil {
+		t.Fatalf("check table existence after re-up: %v", err)
+	}
+	if !tableExists {
+		t.Fatal("supplier_service_config_update_history missing after re-up migration; round-trip failed")
 	}
 }
 
