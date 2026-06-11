@@ -56,14 +56,20 @@ func parseProfile(r io.Reader) map[string]*agg {
 			continue
 		}
 		// The file path ends at the last ':' before the ranges (which contain '.' and ',').
-		file := fields[0][:strings.LastIndexByte(fields[0], ':')]
+		colon := strings.LastIndexByte(fields[0], ':')
+		if colon < 0 {
+			continue
+		}
+		file := fields[0][:colon]
 		nstmt, err1 := strconv.ParseInt(fields[1], 10, 64)
 		cnt, err2 := strconv.ParseInt(fields[2], 10, 64)
 		if err1 != nil || err2 != nil {
 			continue
 		}
 		pkg := strings.TrimPrefix(path.Dir(file), module)
-		if strings.Contains(pkg, "/gen") || pkg == "internal/proto" || !strings.HasPrefix(pkg, "internal/") {
+		// Exclude by exact path segment ("gen"), not substring — a package
+		// named e.g. "generic" must NOT be excluded.
+		if hasSegment(pkg, "gen") || pkg == "internal/proto" || !strings.HasPrefix(pkg, "internal/") {
 			continue
 		}
 		a := pkgs[pkg]
@@ -77,6 +83,16 @@ func parseProfile(r io.Reader) map[string]*agg {
 		}
 	}
 	return pkgs
+}
+
+// hasSegment reports whether pkg contains seg as an exact path segment.
+func hasSegment(pkg, seg string) bool {
+	for _, s := range strings.Split(pkg, "/") {
+		if s == seg {
+			return true
+		}
+	}
+	return false
 }
 
 // report prints the per-package table sorted by name and returns whether any

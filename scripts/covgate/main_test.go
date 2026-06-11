@@ -93,7 +93,7 @@ github.com/pokt-network/pocketscribe/cmd/ps/main.go:5.1,7.2 5 5
 	pkgs := parseProfile(strings.NewReader(excludeProfile))
 	// gen/ directories and internal/proto must be excluded.
 	for pkg := range pkgs {
-		if strings.Contains(pkg, "/gen") {
+		if hasSegment(pkg, "gen") {
 			t.Errorf("gen/ package should be excluded: %s", pkg)
 		}
 		if pkg == "internal/proto" {
@@ -102,5 +102,22 @@ github.com/pokt-network/pocketscribe/cmd/ps/main.go:5.1,7.2 5 5
 		if strings.HasPrefix(pkg, "cmd/") {
 			t.Errorf("cmd/ package should be excluded: %s", pkg)
 		}
+	}
+}
+
+func TestParseProfile_GenExclusionIsExactSegment(t *testing.T) {
+	// A package merely CONTAINING "gen" in a segment name must NOT be excluded;
+	// a malformed line without ':' must be skipped, not panic.
+	profile := `mode: atomic
+github.com/pokt-network/pocketscribe/internal/generic/thing.go:5.1,7.2 4 4
+malformed-line-without-colon 4 4
+`
+	pkgs := parseProfile(strings.NewReader(profile))
+	a := pkgs["internal/generic"]
+	if a == nil || a.stmts != 4 || a.covered != 4 {
+		t.Fatalf("internal/generic should be counted (not excluded as gen/): %+v", a)
+	}
+	if len(pkgs) != 1 {
+		t.Fatalf("want 1 package, got %d", len(pkgs))
 	}
 }
