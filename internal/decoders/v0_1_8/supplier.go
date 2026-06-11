@@ -14,6 +14,16 @@ import (
 // (docs/research/supplier-shape-breaks.md §3). In-range versions
 // (v0_1_10, v0_1_20) delegate here.
 
+// marshalServiceConfigsJSONPB / marshalSCUsJSONPB are test seams over
+// decoders.MarshalJSONPBSlice (same pattern as flushFn/processFn in
+// internal/consumer/batch.go): jsonpb cannot fail for these concrete types,
+// but the defensive guards stay testable. If a future shape adds a field that
+// CAN fail jsonpb (e.g. Any), the guards are already proven to propagate.
+var (
+	marshalServiceConfigsJSONPB = decoders.MarshalJSONPBSlice[*shared.SupplierServiceConfig]
+	marshalSCUsJSONPB           = decoders.MarshalJSONPBSlice[*shared.ServiceConfigUpdate]
+)
+
 // DecodeSupplierMsg implements decoders.Decoder. Only Code==0 txs reach this
 // point (handler filters); (nil, nil) = not a supplier msg we persist.
 func (Decoder) DecodeSupplierMsg(typeURL string, value []byte) (*types.SupplierMsg, error) {
@@ -23,7 +33,7 @@ func (Decoder) DecodeSupplierMsg(typeURL string, value []byte) (*types.SupplierM
 		if err := m.Unmarshal(value); err != nil {
 			return nil, fmt.Errorf("v0_1_8 MsgStakeSupplier: %w", err)
 		}
-		servicesJSON, err := decoders.MarshalJSONPBSlice(m.Services)
+		servicesJSON, err := marshalServiceConfigsJSONPB(m.Services)
 		if err != nil {
 			return nil, err
 		}
@@ -130,11 +140,11 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 		if err := s.Unmarshal(value); err != nil {
 			return nil, fmt.Errorf("v0_1_8 Supplier KV: %w", err)
 		}
-		servicesJSON, err := decoders.MarshalJSONPBSlice(s.Services)
+		servicesJSON, err := marshalServiceConfigsJSONPB(s.Services)
 		if err != nil {
 			return nil, err
 		}
-		schJSON, err := decoders.MarshalJSONPBSlice(s.ServiceConfigHistory)
+		schJSON, err := marshalSCUsJSONPB(s.ServiceConfigHistory)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +184,7 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 			return nil, fmt.Errorf("v0_1_8 ServiceConfigUpdate KV: nil Service field on non-deleted record (key %q)", key)
 		}
 		var svcJSON []byte
-		j, err := decoders.MarshalJSONPBSlice([]*shared.SupplierServiceConfig{scu.Service})
+		j, err := marshalServiceConfigsJSONPB([]*shared.SupplierServiceConfig{scu.Service})
 		if err != nil {
 			return nil, err
 		}

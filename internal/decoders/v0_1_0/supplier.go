@@ -18,6 +18,16 @@ import (
 // EffectiveBlockHeight fields instead of the v0_1_8+ OperatorAddress/Service/
 // ActivationHeight/DeactivationHeight layout).
 
+// marshalServiceConfigsJSONPB / marshalSCUsJSONPB are test seams over
+// decoders.MarshalJSONPBSlice (same pattern as flushFn/processFn in
+// internal/consumer/batch.go): jsonpb cannot fail for these concrete types,
+// but the defensive guards stay testable. If a future shape adds a field that
+// CAN fail jsonpb (e.g. Any), the guards are already proven to propagate.
+var (
+	marshalServiceConfigsJSONPB = decoders.MarshalJSONPBSlice[*shared.SupplierServiceConfig]
+	marshalSCUsJSONPB           = decoders.MarshalJSONPBSlice[*shared.ServiceConfigUpdate]
+)
+
 // DecodeSupplierMsg implements decoders.Decoder. Only Code==0 txs reach this
 // point (handler filters); (nil, nil) = not a supplier msg we persist.
 func (Decoder) DecodeSupplierMsg(typeURL string, value []byte) (*types.SupplierMsg, error) {
@@ -27,8 +37,8 @@ func (Decoder) DecodeSupplierMsg(typeURL string, value []byte) (*types.SupplierM
 		if err := m.Unmarshal(value); err != nil {
 			return nil, fmt.Errorf("v0_1_0 MsgStakeSupplier: %w", err)
 		}
-		servicesJSON, err := decoders.MarshalJSONPBSlice(m.Services)
-		if err != nil { // unreachable-defensive: SupplierServiceConfig is a concrete gogo type; jsonpb never fails on it
+		servicesJSON, err := marshalServiceConfigsJSONPB(m.Services)
+		if err != nil { // defensive: jsonpb cannot fail on this concrete type; reachable only via the test seam
 			return nil, err
 		}
 		out := &types.MsgStakeSupplier{
@@ -142,12 +152,12 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 		if err := s.Unmarshal(value); err != nil {
 			return nil, fmt.Errorf("v0_1_0 Supplier KV: %w", err)
 		}
-		servicesJSON, err := decoders.MarshalJSONPBSlice(s.Services)
-		if err != nil { // unreachable-defensive: SupplierServiceConfig is a concrete gogo type; jsonpb never fails on it
+		servicesJSON, err := marshalServiceConfigsJSONPB(s.Services)
+		if err != nil { // defensive: jsonpb cannot fail on this concrete type; reachable only via the test seam
 			return nil, err
 		}
-		schJSON, err := decoders.MarshalJSONPBSlice(s.ServiceConfigHistory)
-		if err != nil { // unreachable-defensive: ServiceConfigUpdate is a concrete gogo type; jsonpb never fails on it
+		schJSON, err := marshalSCUsJSONPB(s.ServiceConfigHistory)
+		if err != nil { // defensive: jsonpb cannot fail on this concrete type; reachable only via the test seam
 			return nil, err
 		}
 		out := &types.SupplierSnapshot{
@@ -188,7 +198,7 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 			return nil, fmt.Errorf("v0_1_0 SCU key parse: %w", err)
 		}
 		scuJSON, err := marshalSCU(&scu)
-		if err != nil { // unreachable-defensive: ServiceConfigUpdate is a concrete gogo type; marshalSCU never fails on it
+		if err != nil { // defensive: marshalSCU cannot fail with real inputs; reachable only via the test seam
 			return nil, err
 		}
 		return &types.SupplierKVRecord{ServiceConfigUpdate: &types.ServiceConfigUpdateSnapshot{
@@ -205,12 +215,12 @@ func (Decoder) DecodeSupplierKV(key, value []byte, deleted bool) (*types.Supplie
 // marshalSCU serializes the v0_1_0 ServiceConfigUpdate to JSON using jsonpb.
 // This is the version-local helper (the v0_1_0 SCU type differs from v0_1_8+).
 func marshalSCU(scu *shared.ServiceConfigUpdate) ([]byte, error) {
-	// Use MarshalJSONPBSlice as a single-element slice then unwrap.
-	arr, err := decoders.MarshalJSONPBSlice([]*shared.ServiceConfigUpdate{scu})
-	if err != nil { // unreachable-defensive: ServiceConfigUpdate is a concrete gogo type; jsonpb never fails on it
+	// Use the marshalSCUsJSONPB seam as a single-element slice then unwrap.
+	arr, err := marshalSCUsJSONPB([]*shared.ServiceConfigUpdate{scu})
+	if err != nil { // defensive: jsonpb cannot fail on this concrete type; reachable only via the test seam
 		return nil, fmt.Errorf("v0_1_0 ServiceConfigUpdate JSON: %w", err)
 	}
-	if len(arr) < 2 { // unreachable-defensive: non-nil arr from MarshalJSONPBSlice is always at least "[{}]" (4 bytes)
+	if len(arr) < 2 { // defensive: real MarshalJSONPBSlice output is always at least "[{}]"; reachable only via the test seam
 		return nil, fmt.Errorf("v0_1_0 ServiceConfigUpdate JSON unexpectedly short")
 	}
 	// strip array brackets: [{"..."}] → {"..."}
