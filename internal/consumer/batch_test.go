@@ -11,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pokt-network/pocketscribe/internal/metrics"
@@ -359,4 +360,186 @@ func TestBatchRuntimeHandle_FanOutWithHeader(t *testing.T) {
 	if err := rt.handle(context.Background(), msg2); err != nil {
 		t.Fatalf("second handle (dedup): %v", err)
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Size valve (ADR-024 trigger 2) — BatchConfig.MaxRows
+// ─────────────────────────────────────────────────────────────────────────────
+
+// recordingBatchHandler records every FlushHeight call for assertion.
+type recordingBatchHandler struct {
+	id    string
+	calls []flushCall
+}
+
+type flushCall struct {
+	env  *psv1.BlockEnvelope
+	msgs []Message
+}
+
+func (h *recordingBatchHandler) ID() string                { return h.id }
+func (h *recordingBatchHandler) FirstValidVersion() string { return "v0.1.0" }
+func (h *recordingBatchHandler) FlushHeight(_ context.Context, _ pgx.Tx, env *psv1.BlockEnvelope, msgs []Message) error {
+	h.calls = append(h.calls, flushCall{env: env, msgs: append([]Message(nil), msgs...)})
+	return nil
+}
+
+// fakeFlushOnly is a store.FlushOnly replacement for unit tests: it calls write
+// with a nil pgx.Tx (handlers must be nil-safe for this path in unit tests).
+func fakeFlushOnly(ctx context.Context, write func(ctx context.Context, tx pgx.Tx) error) error {
+	return write(ctx, nil)
+}
+
+// TestSizeValve_TriggersPartialFlushAtMaxRows verifies that when MaxRows==3
+// and 3 fan-out messages arrive for the same height, partialFlushLocked is
+// triggered exactly once with env==nil. After the flush:
+//   - b.msgs is empty (flushed rows cleared)
+//   - b.acks and b.seen still retain the 3 entries (acks deferred to fence)
+//   - PartialFlushes{reason="size"} counter == 1
+//   - A 4th message buffers normally without re-triggering the valve.
+//   - Re-driving msg2 is deduped (seen-map retained across flush).
+func TestSizeValve_TriggersPartialFlushAtMaxRows(t *testing.T) {
+	rec := &recordingBatchHandler{id: "supplier"}
+	m := newTestMetrics()
+
+	rt := &BatchRuntime{
+		handler: rec,
+		logger:  discardLogger(),
+		metrics: m,
+		buf:     make(map[int64]*heightBuf),
+		maxRows: 3,
+		maxAge:  5 * time.Second,
+		flushFn: fakeFlushOnly,
+		now:     time.Now,
+	}
+
+	const height = 7
+	const btn int64 = 1_700_000_000_000_000_000 // fixed nano timestamp; must be >0 for partial flush to proceed
+
+	makeMsg := func(idx int, msgID string) fakeMsg {
+		hdr := nats.Header{}
+		hdr.Set("Nats-Msg-Id", msgID)
+		hdr.Set(natsx.HeaderBlockTime, fmt.Sprintf("%d", btn))
+		return fakeMsg{
+			subject: natsx.TxSubject(height, idx),
+			data:    []byte{},
+			headers: hdr,
+		}
+	}
+
+	msg1 := makeMsg(0, "id-1")
+	msg2 := makeMsg(1, "id-2")
+	msg3 := makeMsg(2, "id-3")
+	msg4 := makeMsg(3, "id-4")
+	msg2dup := makeMsg(1, "id-2") // redelivery of msg2
+
+	ctx := context.Background()
+
+	// Drive 3 messages: the 3rd push should trigger partial flush.
+	if err := rt.handle(ctx, msg1); err != nil {
+		t.Fatalf("msg1: %v", err)
+	}
+	if err := rt.handle(ctx, msg2); err != nil {
+		t.Fatalf("msg2: %v", err)
+	}
+	if err := rt.handle(ctx, msg3); err != nil {
+		t.Fatalf("msg3: %v", err)
+	}
+
+	// FlushHeight must have been called exactly once with env==nil.
+	if len(rec.calls) != 1 {
+		t.Fatalf("FlushHeight call count = %d, want 1", len(rec.calls))
+	}
+	if rec.calls[0].env != nil {
+		t.Fatalf("FlushHeight called with non-nil env on partial flush")
+	}
+	if len(rec.calls[0].msgs) != 3 {
+		t.Fatalf("FlushHeight received %d msgs, want 3", len(rec.calls[0].msgs))
+	}
+
+	// After flush: b.msgs must be empty; b.acks and b.seen must be retained.
+	b := rt.buf[height]
+	if b == nil {
+		t.Fatal("heightBuf must still exist after partial flush")
+	}
+	if len(b.msgs) != 0 {
+		t.Fatalf("b.msgs len = %d after flush, want 0", len(b.msgs))
+	}
+	if len(b.acks) != 3 {
+		t.Fatalf("b.acks len = %d after flush, want 3 (acks retained for fence)", len(b.acks))
+	}
+	if len(b.seen) != 3 {
+		t.Fatalf("b.seen len = %d after flush, want 3 (dedup retained)", len(b.seen))
+	}
+
+	// Re-drive msg2 (duplicate): seen-map must dedup; FlushHeight must NOT be called again.
+	if err := rt.handle(ctx, msg2dup); err != nil {
+		t.Fatalf("msg2dup dedup: %v", err)
+	}
+	if len(rec.calls) != 1 {
+		t.Fatalf("FlushHeight called again on dedup; call count = %d, want 1", len(rec.calls))
+	}
+
+	// PartialFlushes counter must be 1 with reason="size".
+	if got := partialFlushesTotal(m, "supplier", "size"); got != 1 {
+		t.Fatalf("PartialFlushes{size} = %v, want 1", got)
+	}
+
+	// 4th message: must buffer without triggering a second flush (valve only fires at boundary).
+	if err := rt.handle(ctx, msg4); err != nil {
+		t.Fatalf("msg4: %v", err)
+	}
+	if len(rec.calls) != 1 {
+		t.Fatalf("unexpected extra FlushHeight call after 4th message; count = %d", len(rec.calls))
+	}
+	if len(b.msgs) != 1 {
+		t.Fatalf("b.msgs len = %d after 4th msg, want 1", len(b.msgs))
+	}
+}
+
+// TestSizeValve_NoPartialFlushWhenTimeUnixNanoZero verifies that when
+// msgs[0].TimeUnixNano == 0 (pre-Phase-G stream without Pocket-Block-Time header),
+// the size valve does NOT call FlushHeight — it logs a WARN and skips.
+func TestSizeValve_NoPartialFlushWhenTimeUnixNanoZero(t *testing.T) {
+	rec := &recordingBatchHandler{id: "supplier"}
+	rt := &BatchRuntime{
+		handler: rec,
+		logger:  discardLogger(),
+		metrics: newTestMetrics(),
+		buf:     make(map[int64]*heightBuf),
+		maxRows: 3,
+		maxAge:  5 * time.Second,
+		flushFn: fakeFlushOnly,
+		now:     time.Now,
+	}
+
+	const height = 8
+	makeNoTimeMsg := func(idx int, msgID string) fakeMsg {
+		hdr := nats.Header{}
+		hdr.Set("Nats-Msg-Id", msgID)
+		// No HeaderBlockTime → TimeUnixNano stays 0
+		return fakeMsg{
+			subject: natsx.TxSubject(height, idx),
+			data:    []byte{},
+			headers: hdr,
+		}
+	}
+
+	ctx := context.Background()
+	for i := range 4 {
+		msg := makeNoTimeMsg(i, fmt.Sprintf("no-time-%d", i))
+		if err := rt.handle(ctx, msg); err != nil {
+			t.Fatalf("msg %d: %v", i, err)
+		}
+	}
+
+	// Handler must NOT have been called (no TimeUnixNano = skip + WARN once).
+	if len(rec.calls) != 0 {
+		t.Fatalf("FlushHeight called %d times, want 0 (no Pocket-Block-Time)", len(rec.calls))
+	}
+}
+
+// partialFlushesTotal is a test helper that reads the PartialFlushes counter value.
+func partialFlushesTotal(m *metrics.Consumer, consumer, reason string) float64 {
+	return testutil.ToFloat64(m.PartialFlushes.WithLabelValues(consumer, reason))
 }

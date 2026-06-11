@@ -6,10 +6,12 @@ const namespace = "pocketscribe"
 
 // Consumer holds the metrics emitted by the generic consumer runtime.
 type Consumer struct {
-	Processed    *prometheus.CounterVec // messages successfully processed
-	GapsTotal    *prometheus.CounterVec // times a gap was observed during consolidation
-	Consolidated *prometheus.GaugeVec   // current consolidated_up_to high-water mark
-	Buffered     *prometheus.GaugeVec   // fan-out messages buffered per consumer awaiting the block-boundary flush
+	Processed      *prometheus.CounterVec // messages successfully processed
+	GapsTotal      *prometheus.CounterVec // times a gap was observed during consolidation
+	Consolidated   *prometheus.GaugeVec   // current consolidated_up_to high-water mark
+	Buffered       *prometheus.GaugeVec   // fan-out messages buffered per consumer awaiting the block-boundary flush
+	PartialFlushes *prometheus.CounterVec // partial flushes by reason (ADR-024 triggers 2-3): labels consumer, reason
+	Evictions      *prometheus.CounterVec // orphaned height buffers dropped without acking: label consumer
 }
 
 // NewConsumer constructs and registers the consumer metric vectors on reg.
@@ -21,6 +23,13 @@ func NewConsumer(reg prometheus.Registerer) *Consumer {
 		reg.MustRegister(v)
 		return v
 	}
+	counter2 := func(name, help string, labels []string) *prometheus.CounterVec {
+		v := prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace, Subsystem: "consumer", Name: name, Help: help,
+		}, labels)
+		reg.MustRegister(v)
+		return v
+	}
 	gauge := func(name, help string) *prometheus.GaugeVec {
 		v := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace, Subsystem: "consumer", Name: name, Help: help,
@@ -29,10 +38,12 @@ func NewConsumer(reg prometheus.Registerer) *Consumer {
 		return v
 	}
 	return &Consumer{
-		Processed:    counter("messages_processed_total", "Messages processed (committed) per consumer."),
-		GapsTotal:    counter("gaps_total", "Gap observations during contiguous consolidation, per consumer."),
-		Consolidated: gauge("consolidated_up_to", "Per-consumer contiguous high-water mark (block height)."),
-		Buffered:     gauge("buffered_messages", "Fan-out messages buffered per consumer awaiting the block-boundary flush."),
+		Processed:      counter("messages_processed_total", "Messages processed (committed) per consumer."),
+		GapsTotal:      counter("gaps_total", "Gap observations during contiguous consolidation, per consumer."),
+		Consolidated:   gauge("consolidated_up_to", "Per-consumer contiguous high-water mark (block height)."),
+		Buffered:       gauge("buffered_messages", "Fan-out messages buffered per consumer awaiting the block-boundary flush."),
+		PartialFlushes: counter2("partial_flushes_total", "Partial flushes triggered before the block-boundary fence (ADR-024 triggers 2-3), by reason.", []string{"consumer", "reason"}),
+		Evictions:      counter("evictions_total", "Orphaned height buffers dropped from memory without acking (AckWait redelivers them)."),
 	}
 }
 

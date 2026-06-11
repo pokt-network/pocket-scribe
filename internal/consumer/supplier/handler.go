@@ -59,11 +59,30 @@ func (h *Handler) FirstValidVersion() string { return "v0.1.0" }
 // FlushHeight decodes every buffered fan-out message for the height and writes
 // the rows inside the runtime-managed transaction. Empty msgs (quiet height)
 // writes nothing and succeeds.
+//
+// Partial-flush contract (ADR-024 triggers 2-3): env may be nil when the
+// block-boundary fence has not arrived yet. In that case height and block_time
+// are derived from msgs[0] (Pocket-Block-Time header → Message.TimeUnixNano).
+// No envelope-derived rows are written. The cursor is NOT advanced — that
+// remains the exclusive job of the block-boundary fence path.
 func (h *Handler) FlushHeight(ctx context.Context, tx pgx.Tx, env *psv1.BlockEnvelope, msgs []consumer.Message) error {
-	if len(msgs) == 0 {
-		return nil
+	var height, tnano int64
+	switch {
+	case env != nil:
+		// Block-boundary fence path: envelope carries height + block_time.
+		// Empty msgs is valid (quiet height — no supplier activity at this block).
+		if len(msgs) == 0 {
+			return nil
+		}
+		height, tnano = env.Height, env.TimeUnixNano
+	case len(msgs) > 0 && msgs[0].TimeUnixNano > 0:
+		// Partial-flush path (ADR-024 trigger 2 size, trigger 3 time): env is nil;
+		// derive height and block_time from msgs[0].
+		height, tnano = msgs[0].Height, msgs[0].TimeUnixNano
+	default:
+		return fmt.Errorf("partial flush requires messages with Pocket-Block-Time (ADR-022 amendment)")
 	}
-	dec, err := h.router.DecoderFor(env.Height)
+	dec, err := h.router.DecoderFor(height)
 	if err != nil {
 		return err
 	}
@@ -71,7 +90,7 @@ func (h *Handler) FlushHeight(ctx context.Context, tx pgx.Tx, env *psv1.BlockEnv
 	if !ok {
 		return fmt.Errorf("decoder version %s has no decoder_version row", dec.Version())
 	}
-	pos := types.Position{Height: env.Height, Time: time.Unix(0, env.TimeUnixNano).UTC()}
+	pos := types.Position{Height: height, Time: time.Unix(0, tnano).UTC()}
 	for _, m := range msgs {
 		switch {
 		case natsx.IsTxSubject(m.Subject):
