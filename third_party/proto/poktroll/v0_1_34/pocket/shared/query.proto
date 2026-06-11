@@ -1,0 +1,54 @@
+syntax = "proto3";
+package pocket.shared;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "cosmos/base/query/v1beta1/pagination.proto";
+import "pocket/shared/params.proto";
+
+option go_package = "github.com/pokt-network/poktroll/x/shared/types";
+option (gogoproto.stable_marshaler_all) = true;
+
+// Query defines the gRPC querier service.
+service Query {
+  // Parameters queries the parameters of the module.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/shared/params";
+  }
+
+  // ParamsAtHeight queries the shared parameters that were effective at a given block
+  // height. Used by off-chain clients (e.g. the RelayMiner) to compute a session's
+  // claim/proof windows using the num_blocks_per_session that was in effect when that
+  // session started, rather than the live value — see the anchored session grid (#543).
+  rpc ParamsAtHeight(QueryParamsAtHeightRequest) returns (QueryParamsAtHeightResponse) {
+    option (google.api.http).get = "/pokt-network/poktroll/shared/params/{height}";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method.
+message QueryParamsResponse {
+  // params holds all the parameters of this module.
+  Params params = 1 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QueryParamsAtHeightRequest is request type for the Query/ParamsAtHeight RPC method.
+message QueryParamsAtHeightRequest {
+  // height is the block height at which to look up the effective shared params.
+  int64 height = 1;
+}
+
+// QueryParamsAtHeightResponse is response type for the Query/ParamsAtHeight RPC method.
+message QueryParamsAtHeightResponse {
+  // params holds the shared parameters that were effective at the requested height.
+  Params params = 1 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}

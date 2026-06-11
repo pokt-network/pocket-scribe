@@ -1,0 +1,13 @@
+# This Dockerfile exists to ensure Ignite OpenAPI works on any platforms.
+# To use it to update `docs/static/openapi.yml`, simply run:
+# $ make openapi_ignite_gen
+
+FROM golang:1.25.8
+
+# Install Ignite CLI
+RUN curl https://get.ignite.com/cli\! | bash
+
+WORKDIR /workspace
+
+# Generate the OpenAPI spec and output to docs/static/openapi.yam
+CMD ["ignite", "generate", "openapi", "--yes"]

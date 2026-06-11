@@ -330,8 +330,8 @@ func TestReportUnstakeUnbonding(t *testing.T) {
 
 func TestMainnetUpgradesComplete(t *testing.T) {
 	ups := MainnetUpgrades()
-	if len(ups) != 31 {
-		t.Fatalf("MainnetUpgrades has %d entries, want 31 (v0.1.2..v0.1.31, v0.1.33; v0.1.1 and v0.1.32 never applied)", len(ups))
+	if len(ups) != 32 {
+		t.Fatalf("MainnetUpgrades has %d entries, want 32 (v0.1.2..v0.1.31, v0.1.33, v0.1.34; v0.1.1 and v0.1.32 never applied)", len(ups))
 	}
 	// Heights strictly increasing (sanity vs versions.yaml transcription).
 	for i := 1; i < len(ups); i++ {

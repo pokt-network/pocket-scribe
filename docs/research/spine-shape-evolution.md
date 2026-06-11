@@ -72,3 +72,5 @@ Curated per-version log of selected entities (configured in
 | v0.1.32 | `pocket.tokenomics.EventClaimSettled` | unchanged |
 | v0.1.33 | `pocket.shared.Supplier` | unchanged |
 | v0.1.33 | `pocket.tokenomics.EventClaimSettled` | +deflation_loss_upokt,mint_ratio,minted_upokt,num_estimated_relays,overservicing_loss_upokt,reward_distribution_detailed,session_id,settled_upokt,supplier_owner_address |
+| v0.1.34 | `pocket.shared.Supplier` | unchanged |
+| v0.1.34 | `pocket.tokenomics.EventClaimSettled` | unchanged (reward_distribution tag=14 was already present in v0.1.33 proto; snapshot extractor false-positive suppressed) |

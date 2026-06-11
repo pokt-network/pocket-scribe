@@ -42,5 +42,6 @@ func MainnetUpgrades() []router.Upgrade {
 		{Name: "v0.1.30", AppliedAtHeight: 484473, DecoderVersion: "v0_1_30"},
 		{Name: "v0.1.31", AppliedAtHeight: 635506, DecoderVersion: "v0_1_31"},
 		{Name: "v0.1.33", AppliedAtHeight: 703870, DecoderVersion: "v0_1_33"},
+		{Name: "v0.1.34", AppliedAtHeight: 788945, DecoderVersion: "v0_1_34"},
 	}
 }
