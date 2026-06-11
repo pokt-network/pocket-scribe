@@ -178,7 +178,6 @@ func TestSync_AllMainnetUpgrades(t *testing.T) {
 	// Wire up an httptest server serving every entry in the fixture.
 	mux := http.NewServeMux()
 	for name, entry := range fixture {
-		name, entry := name, entry // pin loop vars
 		mux.HandleFunc("/cosmos/upgrade/v1beta1/applied_plan/"+name, func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]string{"height": entry.AppliedPlan.Height})
