@@ -537,9 +537,139 @@ func TestSizeValve_NoPartialFlushWhenTimeUnixNanoZero(t *testing.T) {
 	if len(rec.calls) != 0 {
 		t.Fatalf("FlushHeight called %d times, want 0 (no Pocket-Block-Time)", len(rec.calls))
 	}
+	// warnedNoTime must be latched after the first skipped flush (WARN-once guard).
+	b := rt.buf[height]
+	if b == nil {
+		t.Fatal("heightBuf must exist after buffering")
+	}
+	if !b.warnedNoTime {
+		t.Fatal("warnedNoTime must be true after a skipped partial flush")
+	}
+	// All 4 messages remain buffered (nothing flushed).
+	if len(b.msgs) != 4 {
+		t.Fatalf("b.msgs len = %d, want 4 (nothing flushed without Pocket-Block-Time)", len(b.msgs))
+	}
 }
 
 // partialFlushesTotal is a test helper that reads the PartialFlushes counter value.
 func partialFlushesTotal(m *metrics.Consumer, consumer, reason string) float64 {
 	return testutil.ToFloat64(m.PartialFlushes.WithLabelValues(consumer, reason))
+}
+
+// ackCountingMsg wraps fakeMsg and counts Ack() calls through a shared counter.
+type ackCountingMsg struct {
+	fakeMsg
+	acked *int
+}
+
+func (m ackCountingMsg) Ack() error { *m.acked++; return nil }
+
+// TestSizeValve_RoundTripFenceAfterPartialFlush drives the full sequence:
+// 3 msgs → size valve partial flush (no acks, no cursor) → 4th msg buffers →
+// envelope fence → ProcessHeight called ONCE, cursor advances, and ONLY then
+// do all 4 fan-out acks fire (invariant 5: ack strictly after the final commit).
+func TestSizeValve_RoundTripFenceAfterPartialFlush(t *testing.T) {
+	rec := &recordingBatchHandler{id: "supplier"}
+	m := newTestMetrics()
+
+	var processCalls int
+	rt := &BatchRuntime{
+		handler: rec,
+		logger:  discardLogger(),
+		metrics: m,
+		buf:     make(map[int64]*heightBuf),
+		maxRows: 3,
+		maxAge:  5 * time.Second,
+		flushFn: fakeFlushOnly,
+		now:     time.Now,
+		processFn: func(ctx context.Context, _ string, height int64, write func(context.Context, pgx.Tx) error) (int64, error) {
+			processCalls++
+			if err := write(ctx, nil); err != nil {
+				return 0, err
+			}
+			return height, nil // cursor advances to the processed height (no gap)
+		},
+	}
+
+	const height = 7
+	const btn int64 = 1_700_000_000_000_000_000
+
+	var ackCount int
+	makeMsg := func(idx int, msgID string) ackCountingMsg {
+		hdr := nats.Header{}
+		hdr.Set("Nats-Msg-Id", msgID)
+		hdr.Set(natsx.HeaderBlockTime, fmt.Sprintf("%d", btn))
+		return ackCountingMsg{
+			fakeMsg: fakeMsg{subject: natsx.TxSubject(height, idx), data: []byte{}, headers: hdr},
+			acked:   &ackCount,
+		}
+	}
+
+	ctx := context.Background()
+
+	// 3 messages → size valve fires: partial flush, NOTHING acked, cursor untouched.
+	for i := range 3 {
+		if err := rt.handle(ctx, makeMsg(i, fmt.Sprintf("rt-id-%d", i))); err != nil {
+			t.Fatalf("msg %d: %v", i, err)
+		}
+	}
+	if len(rec.calls) != 1 || rec.calls[0].env != nil {
+		t.Fatalf("expected exactly 1 partial flush with nil env; calls = %d", len(rec.calls))
+	}
+	if ackCount != 0 {
+		t.Fatalf("ackCount = %d after partial flush, want 0 (ack only after fence commit)", ackCount)
+	}
+	if processCalls != 0 {
+		t.Fatalf("ProcessHeight called %d times before fence, want 0", processCalls)
+	}
+
+	// 4th message buffers normally.
+	if err := rt.handle(ctx, makeMsg(3, "rt-id-3")); err != nil {
+		t.Fatalf("msg4: %v", err)
+	}
+	if ackCount != 0 {
+		t.Fatalf("ackCount = %d after 4th msg, want 0", ackCount)
+	}
+
+	// The fence: envelope closes the height.
+	env := psv1.BlockEnvelope{Height: height, TimeUnixNano: btn}
+	envData, err := env.Marshal()
+	if err != nil {
+		t.Fatalf("marshal envelope: %v", err)
+	}
+	envMsg := fakeMsg{subject: natsx.BlockSubject(height), data: envData}
+	if err := rt.handle(ctx, envMsg); err != nil {
+		t.Fatalf("fence: %v", err)
+	}
+
+	// ProcessHeight called exactly once; fence flush carries the envelope and
+	// ONLY the 1 message still buffered (the 3 partial-flushed ones are gone).
+	if processCalls != 1 {
+		t.Fatalf("ProcessHeight calls = %d, want 1", processCalls)
+	}
+	if len(rec.calls) != 2 {
+		t.Fatalf("FlushHeight calls = %d, want 2 (partial + fence)", len(rec.calls))
+	}
+	if rec.calls[1].env == nil {
+		t.Fatal("fence flush must carry a non-nil envelope")
+	}
+	if rec.calls[1].env.Height != height {
+		t.Fatalf("fence env.Height = %d, want %d", rec.calls[1].env.Height, height)
+	}
+	if len(rec.calls[1].msgs) != 1 {
+		t.Fatalf("fence flush received %d msgs, want 1 (only the unflushed 4th)", len(rec.calls[1].msgs))
+	}
+
+	// All 4 fan-out acks fire ONLY now, after the fence commit.
+	if ackCount != 4 {
+		t.Fatalf("ackCount = %d after fence, want 4", ackCount)
+	}
+
+	// Buffer is gone; cursor (Consolidated gauge) advanced to the height.
+	if rt.buf[height] != nil {
+		t.Fatal("heightBuf must be deleted after the fence")
+	}
+	if got := testutil.ToFloat64(m.Consolidated.WithLabelValues("supplier")); got != height {
+		t.Fatalf("Consolidated = %v, want %d", got, height)
+	}
 }

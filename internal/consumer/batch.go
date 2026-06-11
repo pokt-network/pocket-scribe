@@ -37,7 +37,10 @@ type BatchRuntime struct {
 	maxAge     time.Duration
 	evictAfter time.Duration
 	now        func() time.Time // operational valve clock; NEVER written to chain-data rows (Invariant 1)
-	flushFn    func(ctx context.Context, write func(ctx context.Context, tx pgx.Tx) error) error
+	// flushFn / processFn are seams over store.FlushOnly / store.ProcessHeight
+	// (wired by NewBatchRuntime); unit tests inject fakes — no Store interface.
+	flushFn   func(ctx context.Context, write func(ctx context.Context, tx pgx.Tx) error) error
+	processFn func(ctx context.Context, consumer string, height int64, write func(ctx context.Context, tx pgx.Tx) error) (int64, error)
 }
 
 type heightBuf struct {
@@ -90,8 +93,10 @@ func NewBatchRuntime(cfg BatchConfig) *BatchRuntime {
 		cfg.Now = time.Now
 	}
 	var flushFn func(ctx context.Context, write func(ctx context.Context, tx pgx.Tx) error) error
+	var processFn func(ctx context.Context, consumer string, height int64, write func(ctx context.Context, tx pgx.Tx) error) (int64, error)
 	if cfg.Store != nil {
 		flushFn = cfg.Store.FlushOnly
+		processFn = cfg.Store.ProcessHeight
 	}
 	return &BatchRuntime{
 		handler:        cfg.Handler,
@@ -106,6 +111,7 @@ func NewBatchRuntime(cfg BatchConfig) *BatchRuntime {
 		evictAfter:     cfg.EvictAfter,
 		now:            cfg.Now,
 		flushFn:        flushFn,
+		processFn:      processFn,
 	}
 }
 
@@ -249,7 +255,7 @@ func (r *BatchRuntime) handle(ctx context.Context, msg jetstream.Msg) error {
 	if b == nil {
 		b = &heightBuf{} // quiet height: empty flush still advances the cursor
 	}
-	next, err := r.store.ProcessHeight(ctx, id, height, func(ctx context.Context, tx pgx.Tx) error {
+	next, err := r.processFn(ctx, id, height, func(ctx context.Context, tx pgx.Tx) error {
 		return r.handler.FlushHeight(ctx, tx, &env, b.msgs)
 	})
 	if err != nil {

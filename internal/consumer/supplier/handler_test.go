@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/pokt-network/pocketscribe/internal/consumer"
 	"github.com/pokt-network/pocketscribe/internal/decoders"
 	psv1 "github.com/pokt-network/pocketscribe/internal/proto/gen/pocketscribe/v1"
@@ -171,26 +174,62 @@ func (c *capturingFakeRouter) DecoderFor(h int64) (decoders.Decoder, error) {
 	return c.dec, c.err
 }
 
-// TestFlushHeightNilEnvelope_BlockTimeDerivedFromMessage verifies that
-// position.Time == time.Unix(0, msgs[0].TimeUnixNano).UTC() in the nil-env path.
-// We verify indirectly via a trackingDecoder that records the events decoded.
-// Since noopDecoder returns nil for DecodeSupplierMsg the store is never called,
-// but the positive case (env==nil, TimeUnixNano>0) must not error.
+// capturePosDecoder returns a SupplierKVRecord with a non-nil Supplier and
+// retains the pointer: the handler stamps Position on that exact record BEFORE
+// the store call, so the test can assert the Position used for the rows.
+type capturePosDecoder struct {
+	noopDecoder
+	captured *types.SupplierKVRecord
+}
+
+func (d *capturePosDecoder) DecodeSupplierKV(_, _ []byte, _ bool) (*types.SupplierKVRecord, error) {
+	rec := &types.SupplierKVRecord{Supplier: &types.SupplierSnapshot{OperatorAddress: "pokt1capture"}}
+	d.captured = rec
+	return rec, nil
+}
+
+// fakeTx is a minimal pgx.Tx for unit tests: only Exec is implemented (returns
+// success); any other method panics via the nil embedded interface.
+type fakeTx struct{ pgx.Tx }
+
+func (fakeTx) Exec(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+// TestFlushHeightNilEnvelope_BlockTimeDerivedFromMessage verifies that in the
+// nil-env partial-flush path the Position stamped on rows is EXACTLY
+// {Height: msgs[0].Height, Time: time.Unix(0, msgs[0].TimeUnixNano).UTC()}.
+// capturePosDecoder retains the decoded record; the handler mutates its
+// Position before calling store.InsertSupplierSnapshot (fakeTx absorbs the Exec).
 func TestFlushHeightNilEnvelope_BlockTimeDerivedFromMessage(t *testing.T) {
+	const wantHeight int64 = 102542
 	const wantNano int64 = 1_700_000_000_000_000_000
 	wantTime := time.Unix(0, wantNano).UTC()
-	_ = wantTime // verifiable only when a real decode path is exercised; here we assert no-error + correct time derivation side-effect
 
-	h := New(&fakeRouter{dec: noopDecoder{}}, map[string]int16{"v0.noop": 1})
+	dec := &capturePosDecoder{}
+	h := New(&fakeRouter{dec: dec}, map[string]int16{"v0.noop": 1})
 	msg := consumer.Message{
-		Height:       102542,
+		Height:       wantHeight,
 		Subject:      "pokt.kv.supplier.102542",
 		MsgID:        "kv-partial-1",
 		TimeUnixNano: wantNano,
-		Data:         nil, // empty proto bytes — noopDecoder returns nil before any store call
+		Data:         nil, // empty proto bytes — StoreKVPair unmarshals to zero values
 	}
-	if err := h.FlushHeight(context.Background(), nil, nil, []consumer.Message{msg}); err != nil {
+	if err := h.FlushHeight(context.Background(), fakeTx{}, nil, []consumer.Message{msg}); err != nil {
 		t.Fatalf("FlushHeight nil-env KV path: unexpected error: %v", err)
+	}
+	if dec.captured == nil || dec.captured.Supplier == nil {
+		t.Fatal("decoder was not invoked / record not captured")
+	}
+	got := dec.captured.Supplier.Position
+	if got.Height != wantHeight {
+		t.Fatalf("Position.Height = %d, want %d", got.Height, wantHeight)
+	}
+	if !got.Time.Equal(wantTime) {
+		t.Fatalf("Position.Time = %v, want %v", got.Time, wantTime)
+	}
+	if loc := got.Time.Location(); loc != time.UTC {
+		t.Fatalf("Position.Time location = %v, want UTC", loc)
 	}
 }
 
