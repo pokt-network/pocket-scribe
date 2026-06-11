@@ -499,7 +499,7 @@ Implementation:
 - `ps reconciler` minimal: periodic loop calling `ps sync-upgrades`. (Full reconciler is Slice 4.)
 - Edge cases: empty blocks, upgrade boundary corners, large blocks (256 KiB soft cap → 1 MiB hard cap behavior), simultaneous consumer restarts.
 - Per-component package READMEs.
-- `make ci` clean: lint, vet, test (race detector), coverage targets (80% on internal/, 100% on decoders).
+- `make ci` clean: lint, vet, test (race detector), coverage targets (90% on internal/, 100% on decoders; originally drafted as 80%, raised to 90% during Phase G per project coverage policy).
 
 **Exit**: full Slice 1 exit criterion (Section 15) met.
 
@@ -644,13 +644,13 @@ These are flagged for future slices, not for Slice 1:
 
 Slice 1 is "done" when:
 
-1. All 27 test scenarios (Section 9) are green.
+1. All 27 test scenarios (Section 11.1) are green.
 2. 32 decoder packages compile and pass per-version golden tests against curated fixtures.
 3. Block + supplier consumers running in parallel against real archeology data.
 4. Per-height seal computed correctly via dynamic `required_set(H)` query, validated multi-network (mainnet config + localnet config tests).
 5. `ps sync-upgrades` populates `upgrades` table from mainnet RPC; reconciler refreshes periodically.
 6. Passive self-heal: gap injection scenario closes correctly when the missing height arrives.
-7. `make ci` clean; coverage ≥80% on internal/, 100% on decoders.
+7. `make ci` clean; coverage ≥90% on internal/, 100% on decoders (combined unit+integration profile; composition roots `internal/app/*` covered by integration layers).
 
 When Slice 1 is done, Slice 2 (aggregates) can begin — the orchestration foundation, the data layer, and the multi-version mechanism will all be proven.
 
